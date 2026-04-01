@@ -10,6 +10,8 @@ Chức năng 1.2 - Khởi tạo Mã QR Động (Dynamic QR Code): Khi người d
 
 Chức năng 1.3 - Tra cứu lịch sử chuyên cần cá nhân: Cung cấp giao diện bảng điều khiển cá nhân để người dùng xem lại chi tiết thời gian check-in/check-out của từng ngày làm việc, tổng số ngày công đã đạt, và thống kê các vi phạm như đi muộn hoặc về sớm trong tháng.
 
+Chức năng 1.4 - Quản lý đơn từ và Nghỉ phép: Cho phép nhân viên tạo và gửi các loại đơn từ (nghỉ phép năm, nghỉ ốm, đi công tác) trực tiếp trên hệ thống. Nhân viên có thể theo dõi trạng thái phê duyệt của đơn (Chờ duyệt, Đã duyệt, Từ chối) và theo dõi quỹ ngày phép còn lại trong năm của mình.
+
 2. Nhóm chức năng tại Trạm Kiosk (Kiosk Web Terminal)
 Vận hành trên thiết bị màn hình lớn (Laptop/Tablet) đặt cố định tại lối ra vào.
 
@@ -31,6 +33,10 @@ Chức năng 3.2 - Thiết lập quy tắc ca làm việc (Shift Configuration):
 Chức năng 3.3 - Bảng điều khiển giám sát trực tiếp (Real-time Monitor): Hiển thị các biểu đồ trực quan thống kê tổng quan sĩ số công ty trong ngày: Tổng số nhân sự, số lượng đã check-in, số lượng vắng mặt và đi muộn tính đến thời điểm hiện tại.
 
 Chức năng 3.4 - Kết xuất báo cáo dữ liệu: Hỗ trợ tính năng lọc dữ liệu lịch sử chấm công theo mốc thời gian và phòng ban. Cho phép tải xuống (Export) bảng dữ liệu thô dưới định dạng .xlsx hoặc .csv để phục vụ công tác tính lương.
+
+Chức năng 3.5 - Xét duyệt đơn từ (Leave Approval - MỚI): Cung cấp giao diện để Quản trị viên kiểm tra lý do và tiến hành phê duyệt hoặc từ chối các đơn xin nghỉ phép/công tác từ nhân viên gửi lên.
+
+Chức năng 3.6 - Hiệu chỉnh chấm công thủ công (Manual Adjustment - MỚI): Cho phép Admin có quyền hạn chỉnh sửa tay nhật ký chấm công (thêm giờ in/out) trong các trường hợp ngoại lệ (Kiosk mất điện, nhân viên quên mang điện thoại). Mọi thao tác đều bắt buộc ghi chú lý do và được lưu vết (Audit Trail) để đảm bảo tính minh bạch.
 
 4. Nhóm chức năng xử lý Hệ thống (Backend & AI Logic)
 Các quy trình tự động hóa chạy ngầm trên Server.
