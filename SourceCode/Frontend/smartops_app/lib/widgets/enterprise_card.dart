@@ -12,7 +12,7 @@ class EnterpriseCard extends StatelessWidget {
   const EnterpriseCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(24.0),
+    this.padding = const EdgeInsets.all(20.0),
     this.width,
     this.height,
     this.color,

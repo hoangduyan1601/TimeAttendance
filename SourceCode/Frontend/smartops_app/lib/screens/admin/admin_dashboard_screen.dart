@@ -1,490 +1,237 @@
 import 'package:flutter/material.dart';
-import '../../core/theme.dart';
-import '../../widgets/enterprise_card.dart';
-import '../../widgets/status_badge.dart';
+import 'package:smartops_app/core/routes.dart';
+import 'package:smartops_app/core/theme.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _buildAppBar(context),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildSidebar(context),
-          const VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: AppTheme.dividerColor,
+      appBar: AppBar(
+        title: const Text('QUẢN TRỊ VIÊN'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => _showShiftConfig(context),
           ),
-          Expanded(child: _buildMainContent()),
+          IconButton(
+            icon: const Icon(Icons.logout_outlined),
+            onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.login),
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppTheme.corporateBlue,
+          indicatorColor: AppTheme.corporateBlue,
+          tabs: const [
+            Tab(text: 'Tổng quan'),
+            Tab(text: 'Nhân sự'),
+            Tab(text: 'Duyệt đơn'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildOverviewTab(),
+          _buildEmployeeTab(),
+          _buildLeaveApprovalTab(),
         ],
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    return AppBar(
-      title: const Text('SmartOps Admin Portal'),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-        onPressed: () => Navigator.pop(context),
-      ),
-      backgroundColor: AppTheme.white,
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1.0),
-        child: Container(color: AppTheme.dividerColor, height: 1.0),
-      ),
-      actions: [
-        Container(
-          width: 300,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: 'Tìm kiếm nhân viên, mã số...',
-              prefixIcon: const Icon(Icons.search, color: AppTheme.textHint),
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppTheme.borderRadiusMd),
-                borderSide: const BorderSide(color: AppTheme.dividerColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppTheme.borderRadiusMd),
-                borderSide: const BorderSide(color: AppTheme.dividerColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppTheme.borderRadiusMd),
-                borderSide: const BorderSide(
-                  color: AppTheme.corporateBlue,
-                  width: 2,
-                ),
-              ),
-              filled: true,
-              fillColor: AppTheme.backgroundLight,
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        TextButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.file_download_outlined, size: 20),
-          label: const Text('Xuất Báo Cáo (.xlsx)'),
-          style: TextButton.styleFrom(
-            foregroundColor: AppTheme.corporateBlue,
-            textStyle: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-        const SizedBox(width: 24),
-        Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: AppTheme.corporateBlue.withValues(alpha: 0.1),
-              child: const Icon(
-                Icons.admin_panel_settings,
-                color: AppTheme.corporateBlue,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Quản trị viên',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  'Admin',
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(width: 24),
-      ],
-    );
-  }
-
-  Widget _buildSidebar(BuildContext context) {
-    return Container(
-      width: 260,
-      color: AppTheme.white,
-      child: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+  Widget _buildOverviewTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 24, bottom: 16, top: 8),
-            child: Text(
-              'MENU QUẢN TRỊ',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-                color: AppTheme.textHint,
+          Row(
+            children: [
+              _buildStatCard('Tổng nhân sự', '150', Icons.people, Colors.blue),
+              _buildStatCard('Đã check-in', '142', Icons.check_circle, Colors.green),
+            ],
+          ),
+          Row(
+            children: [
+              _buildStatCard('Đi muộn', '05', Icons.timer, Colors.orange),
+              _buildStatCard('Vắng mặt', '08', Icons.cancel, Colors.red),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Lịch sử quét gần đây', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Divider(),
+                  _buildMiniLog('Hoàng Duy An', '08:00', 'Đúng giờ'),
+                  _buildMiniLog('Lê Văn B', '08:15', 'Đi muộn'),
+                  _buildMiniLog('Nguyễn Thị C', '08:20', 'Đi muộn'),
+                ],
               ),
             ),
-          ),
-          const _SidebarItem(
-            icon: Icons.dashboard_outlined,
-            label: 'Giám sát trực tiếp',
-            isSelected: true,
-          ),
-          const _SidebarItem(
-            icon: Icons.badge_outlined,
-            label: 'Quản lý Hồ sơ & eKYC',
-          ),
-          const _SidebarItem(
-            icon: Icons.calendar_today_outlined,
-            label: 'Thiết lập Ca làm việc',
-          ),
-          const _SidebarItem(
-            icon: Icons.fact_check_outlined,
-            label: 'Xét duyệt Đơn từ',
-          ),
-          const _SidebarItem(
-            icon: Icons.edit_calendar_outlined,
-            label: 'Hiệu chỉnh Chấm công',
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Divider(),
-          ),
-          const _SidebarItem(
-            icon: Icons.bar_chart_outlined,
-            label: 'Báo cáo & Thống kê',
-          ),
-          const _SidebarItem(
-            icon: Icons.settings_outlined,
-            label: 'Cài đặt hệ thống',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMainContent() {
-    return Container(
-      color: AppTheme.backgroundLight,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tổng quan hôm nay',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildMetricsRow(),
-            const SizedBox(height: 32),
-            Text(
-              'Danh sách cần xử lý',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildDataTable(),
-          ],
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 30),
+              const SizedBox(height: 8),
+              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildMetricsRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildMetricCard(
-            'Tổng NV',
-            '120',
-            Icons.people_alt_outlined,
-            AppTheme.corporateBlue,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildMetricCard(
-            'Đã Check-in',
-            '115',
-            Icons.check_circle_outline,
-            AppTheme.success,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildMetricCard(
-            'Vắng mặt',
-            '3',
-            Icons.cancel_outlined,
-            AppTheme.error,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildMetricCard(
-            'Đi muộn',
-            '2',
-            Icons.access_time_outlined,
-            AppTheme.warning,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetricCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return EnterpriseCard(
-      padding: const EdgeInsets.all(20.0),
+  Widget _buildMiniLog(String name, String time, String status) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          Text(name),
+          Text(time),
+          Text(status, style: TextStyle(color: status == 'Đúng giờ' ? Colors.green : Colors.orange)),
         ],
       ),
     );
   }
 
-  Widget _buildDataTable() {
-    return EnterpriseCard(
-      padding: EdgeInsets.zero,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusLg),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowHeight: 56,
-            dataRowMinHeight: 64,
-            dataRowMaxHeight: 64,
-            headingRowColor: WidgetStateProperty.all(AppTheme.backgroundLight),
-            headingTextStyle: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
-              fontSize: 13,
-              letterSpacing: 0.5,
-            ),
-            dataTextStyle: TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            dividerThickness: 1,
+  Widget _buildEmployeeTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Danh sách nhân viên', style: TextStyle(fontWeight: FontWeight.bold)),
+              ElevatedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.add),
+                label: const Text('Thêm mới'),
+                style: ElevatedButton.styleFrom(minimumSize: const Size(120, 40)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          DataTable(
+            columnSpacing: 20,
             columns: const [
-              DataColumn(label: Text('MÃ NV')),
-              DataColumn(label: Text('HỌ TÊN')),
-              DataColumn(label: Text('LOẠI TÁC VỤ')),
-              DataColumn(label: Text('TRẠNG THÁI / CHI TIẾT')),
-              DataColumn(label: Text('HÀNH ĐỘNG')),
+              DataColumn(label: Text('Mã NV')),
+              DataColumn(label: Text('Họ tên')),
+              DataColumn(label: Text('Thao tác')),
             ],
             rows: [
-              _buildDataRow(
-                'NV-012',
-                'Phạm Văn D',
-                'eKYC mới',
-                'Chờ duyệt khuôn mặt gốc',
-                BadgeType.primary,
-              ),
-              _buildDataRow(
-                'NV-008',
-                'Hoàng Thị E',
-                'Đơn nghỉ',
-                'Nghỉ ốm (1 ngày)',
-                BadgeType.neutral,
-              ),
-              _buildDataRow(
-                'NV-005',
-                'Lê Văn F',
-                'Chấm công',
-                'Đi muộn (Cần sửa giờ)',
-                BadgeType.warning,
-              ),
+              DataRow(cells: [
+                const DataCell(Text('NV-001')),
+                const DataCell(Text('Hoàng Duy An')),
+                DataCell(IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: () => _showManualAdjustment(context))),
+              ]),
+              const DataRow(cells: [
+                DataCell(Text('NV-002')),
+                DataCell(Text('Lê Văn B')),
+                DataCell(Icon(Icons.edit, size: 20)),
+              ]),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
 
-  DataRow _buildDataRow(
-    String id,
-    String name,
-    String taskType,
-    String detail,
-    BadgeType badgeType,
-  ) {
-    return DataRow(
-      cells: [
-        DataCell(Text(id, style: const TextStyle(fontFamily: 'RobotoMono'))),
-        DataCell(
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: AppTheme.dividerColor,
-                child: Text(
-                  name[0],
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(name),
-            ],
+  Widget _buildLeaveApprovalTab() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 2,
+      itemBuilder: (context, index) {
+        return Card(
+          child: ListTile(
+            title: const Text('Nghỉ phép năm - Nguyễn Văn X'),
+            subtitle: const Text('Ngày: 10/04/2026 - Lý do: Giải quyết việc gia đình'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(icon: const Icon(Icons.check_circle, color: Colors.green), onPressed: () {}),
+                IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: () {}),
+              ],
+            ),
           ),
-        ),
-        DataCell(Text(taskType)),
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              StatusBadge(text: taskType, type: badgeType),
-              const SizedBox(width: 8),
-              Text(
-                detail,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 0,
-                  ),
-                  minimumSize: const Size(64, 36),
-                  elevation: 0,
-                  backgroundColor: AppTheme.corporateBlue,
-                  foregroundColor: AppTheme.white,
-                ),
-                child: const Text('Duyệt'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 0,
-                  ),
-                  minimumSize: const Size(64, 36),
-                  side: const BorderSide(color: AppTheme.error),
-                  foregroundColor: AppTheme.error,
-                ),
-                child: const Text('Từ chối'),
-              ),
-            ],
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
-}
 
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    this.isSelected = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isSelected ? AppTheme.corporateBlue : AppTheme.textSecondary;
-    final bgColor = isSelected
-        ? AppTheme.corporateBlue.withValues(alpha: 0.1)
-        : Colors.transparent;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusMd),
-        child: Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(AppTheme.borderRadiusMd),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-            ],
-          ),
+  void _showShiftConfig(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Thiết lập ca làm việc'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(decoration: const InputDecoration(labelText: 'Giờ bắt đầu', hintText: '08:00')),
+            const SizedBox(height: 12),
+            TextField(decoration: const InputDecoration(labelText: 'Giờ kết thúc', hintText: '17:00')),
+            const SizedBox(height: 12),
+            TextField(decoration: const InputDecoration(labelText: 'Thời gian châm chước (phút)', hintText: '15')),
+          ],
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('Lưu')),
+        ],
+      ),
+    );
+  }
+
+  void _showManualAdjustment(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hiệu chỉnh chấm công'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Nhân viên: Hoàng Duy An (NV-001)'),
+            const SizedBox(height: 16),
+            TextField(decoration: const InputDecoration(labelText: 'Giờ vào mới')),
+            const SizedBox(height: 12),
+            TextField(decoration: const InputDecoration(labelText: 'Lý do hiệu chỉnh', hintText: 'Nhập lý do...'), maxLines: 2),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('Xác nhận')),
+        ],
       ),
     );
   }
