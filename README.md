@@ -33,7 +33,7 @@ Hệ thống được thiết kế theo kiến trúc Microservices để đảm 
 ## 📅 Tiến độ thực hiện (Weekly Progress)
 *(Click vào các link bên dưới để xem chi tiết báo cáo từng giai đoạn)*
 * [x] **Tuần 1:** [Mô tả chức năng ](./Documents/Requirement/Tuan1.md)  [Phác thảo giao diện UI](./Documents/Requirement/SmartOps_UI_Mockups.png)
-* [ ] **Tuần 2:** Xây dựng Frontend Flutter.
+* [ ] **Tuần 2:** Xây dựng Frontend Flutter.    [Ảnh kết quả ](./Documents/GUI%20design/)           [Code](./SourceCode/Frontend/smartops_app/)
 * [ ] **Tuần 3:** Thiết kế Backend (API/Function & Database).
 * [ ] **Tuần 4:** Xây dựng Backend & Tích hợp AI.
 * [ ] **Tuần 5:** Tích hợp hệ thống & Kiểm thử.
