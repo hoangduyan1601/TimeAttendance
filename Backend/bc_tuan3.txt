@@ -1,0 +1,64 @@
+BÁO CÁO CHI TIẾT TUẦN 3: THIẾT KẾ BACKEND (API/FUNCTION)
+Dự án: Hệ thống quản lý chấm công thông minh SmartOps
+
+I. DANH SÁCH TỔNG QUAN CÁC API/FUNCTION CHÍNH
+
+Hệ thống được chia làm 2 phân hệ Microservices xử lý độc lập nhằm đảm bảo hiệu năng và tính bảo mật sinh trắc học.
+
+1. Phân hệ Core Backend (Java Spring Boot)
+----------------------------------------------------------------------------------------------------
+| STT | Tên API                | Endpoint (URL)               | Mục đích sử dụng                                   | Giao diện tương ứng        |
+|:---:|------------------------|------------------------------|----------------------------------------------------|----------------------------|
+| 1   | Đăng nhập hệ thống     | /api/v1/auth/login           | Xác thực người dùng, cấp phát JWT Token.           | Màn hình Đăng nhập         |
+| 2   | Đăng ký eKYC           | /api/v1/auth/ekyc            | Upload ảnh CCCD & Selfie để AI mã hóa khuôn mặt.   | Màn hình Đăng ký eKYC      |
+| 3   | Sinh mã QR Động        | /api/v1/auth/qr-code         | Tạo mã QR chứa ID mã hóa, TTL 30s chống gian lận.  | Dashboard (Employee)       |
+| 4   | Xem lịch sử cá nhân    | /api/v1/employee/attendance  | Tra cứu lịch sử check-in/out và vi phạm.           | Tra cứu lịch sử (Employee) |
+| 5   | Gửi đơn từ             | /api/v1/employee/leaves      | Nộp đơn xin nghỉ phép/công tác.                    | Quản lý đơn từ (Employee)  |
+| 6   | Xác thực chấm công     | /api/v1/kiosk/verify         | Gửi QR và ảnh Live Frame để đối chiếu khuôn mặt.   | Màn hình chờ (Kiosk)       |
+| 7   | Nhật ký trực tiếp      | /api/v1/kiosk/live-logs      | Lấy danh sách nhân viên vừa quét (Real-time).      | Live Log (Kiosk)           |
+| 8   | Thống kê Dashboard     | /api/v1/admin/dashboard/stats| Đếm sĩ số, đi muộn, vắng mặt trong ngày.           | Dashboard Tổng quan (Admin) |
+| 9   | Quản lý Nhân sự        | /api/v1/admin/users          | Các thao tác CRUD (Thêm/Sửa/Xóa/DS) nhân viên.      | Quản lý Nhân sự (Admin)     |
+| 10  | Phê duyệt eKYC         | /api/v1/admin/ekyc/{id}/review| Duyệt/từ chối hồ sơ sinh trắc học mới.             | Duyệt hồ sơ (Admin)         |
+| 11  | Hiệu chỉnh thủ công    | /api/v1/admin/attendance/adjust| Sửa giờ công (kèm lý do) khi có sự cố hệ thống.    | Hiệu chỉnh dữ liệu (Admin)  |
+| 12  | Xuất báo cáo           | /api/v1/admin/reports/export | Kết xuất lịch sử ra file .xlsx để tính lương.      | Báo cáo & Thống kê (Admin)  |
+
+2. Phân hệ AI Microservice (Python FastAPI)
+----------------------------------------------------------------------------------------------------
+- Extract Vector (/internal/ai/embed): Nhận ảnh, trả về mảng Vector 128 chiều.
+- Compare Faces (/internal/ai/compare): Nhận ảnh trực tiếp và Vector gốc, trả về tỷ lệ trùng khớp (%).
+
+II. THIẾT KẾ CHI TIẾT CÁC API TRỌNG TÂM
+
+1. API Xác thực Đăng nhập
+- URL: /api/v1/auth/login (POST)
+- Input: { "username": "NV001", "password": "hashed_password" }
+- Output: { "access_token": "eyJ...", "token_type": "Bearer", "user": { "id": 1, "role": "EMPLOYEE" } }
+- Database: Truy vấn bảng 'users' để kiểm tra tài khoản và mật khẩu.
+
+2. API Đăng ký định danh sinh trắc (eKYC)
+- URL: /api/v1/auth/ekyc (POST)
+- Input: multipart/form-data (file_id_card, file_selfie)
+- Output: { "code": 201, "message": "Đã gửi hồ sơ eKYC thành công." }
+- Database: Cập nhật trạng thái 'ekyc_status' trong bảng 'users', ghi dữ liệu vào 'face_data'.
+
+3. API Sinh mã QR Động (Dynamic QR Code)
+- URL: /api/v1/auth/qr-code (GET)
+- Input: JWT Token trong Header.
+- Output: { "qr_token": "U2FsdGVkX1...", "expires_at": 1698765430 }
+- Database: Không truy vấn (Xử lý thuật toán mã hóa AES + Timestamp trên Server).
+
+4. API Xác thực Kiosk (Trọng tâm hệ thống)
+- URL: /api/v1/kiosk/verify (POST)
+- Input: { "kiosk_id": "K-01", "qr_token": "U2FsdGVk...", "live_image_base64": "data:image/..." }
+- Output: { "employee_name": "Hoàng Duy An", "time": "07:45:00", "attendance_status": "ON_TIME" }
+- Database: Đọc 'users', 'face_data', 'shift_configs'. Ghi dữ liệu vào 'attendance_logs'.
+
+5. API Hiệu chỉnh chấm công thủ công
+- URL: /api/v1/admin/attendance/adjust (POST)
+- Input: { "user_id": 1, "date": "2026-10-25", "new_time": "08:00:00", "reason": "Lỗi Kiosk" }
+- Output: { "code": 200, "message": "Đã cập nhật giờ chấm công thành công." }
+- Database: Cập nhật 'attendance_logs', ghi vết vào 'audit_logs'.
+
+----------------------------------------------------------------------------------------------------
+Người soạn thảo: Nhóm Backend SmartOps
+Tuần báo cáo: Tuần 3
