@@ -1,0 +1,35 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: core-api
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5433/smartops_db
+    username: postgres
+    password: root
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  expiration: 86400000 # 24 hours in milliseconds
+
+upload:
+  path: uploads/ekyc
+ai-service:
+  url: http://localhost:8000 # URL của Python FastAPI
+  extract-endpoint: /internal/ai/embed
+  compare-endpoint: /internal/ai/compare

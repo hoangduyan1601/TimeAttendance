@@ -1,0 +1,80 @@
+1. Phân hệ Core Backend (Java Spring Boot)
+
+
+  ┌─────┬─────────────────────┬──────────────────────────────────┬────────────┬─────────────────────────────────────────────────────────────────────┐
+  │ STT │ API                 │ Endpoint                         │ Trạng thái │ Chi tiết kỹ thuật                                                   │
+  ├─────┼─────────────────────┼──────────────────────────────────┼────────────┼─────────────────────────────────────────────────────────────────────┤
+  │ 1   │ Đăng nhập           │ /api/v1/auth/login               │ ✅ Đạt     │ Đã triển khai JWT, kiểm tra mật khẩu từ DB.                         │
+  │ 2   │ Đăng ký eKYC        │ /api/v1/auth/ekyc                │ ✅ Đạt     │ Đã chuyển sang lưu Local Storage (để free), gọi AI lấy Vector 128D. │
+  │ 3   │ Sinh mã QR Động     │ /api/v1/auth/qr-code             │ ✅ Đạt     │ Đã triển khai logic mã hóa ID + Timestamp (TTL 30s).                │
+  │ 4   │ Xem lịch sử cá nhân │ /api/v1/employee/attendance      │ ✅ Đạt     │ Đã có Service lấy dữ liệu theo User đang đăng nhập.                 │
+  │ 5   │ Gửi đơn từ          │ /api/v1/employee/leaves          │ ✅ Đạt     │ Đã triển khai lưu đơn vào bảng leave_requests.                      │
+  │ 6   │ Xác thực Kiosk      │ /api/v1/kiosk/verify             │ ✅ Đạt     │ Trọng tâm: Giải mã QR -> Gọi AI so sánh -> Ghi Log chấm công.       │
+  │ 7   │ Nhật ký trực tiếp   │ /api/v1/kiosk/live-logs          │ ✅ Đạt     │ Lấy 10 bản ghi mới nhất để hiển thị tại Kiosk.                      │
+  │ 8   │ Thống kê Dashboard  │ /api/v1/admin/dashboard/stats    │ ✅ Đạt     │ Đã có logic đếm Sĩ số, Muộn, Vắng trong ngày.                       │
+  │ 9   │ Quản lý Nhân sự     │ /api/v1/admin/users              │ ✅ Đạt     │ CRUD đầy đủ trong UserController.                                   │
+  │ 10  │ Phê duyệt eKYC      │ /api/v1/admin/ekyc/{id}/review   │ ✅ Đạt     │ Cập nhật trạng thái duyệt và kích hoạt vector khuôn mặt.            │
+  │ 11  │ Cấu hình Ca làm     │ /api/v1/admin/shifts             │ ✅ Đạt     │ CRUD trong ShiftController, hỗ trợ thiết lập lateThreshold.         │
+  │ 12  │ Phê duyệt Đơn từ    │ /api/v1/admin/leaves/{id}/review │ ✅ Đạt     │ Admin có quyền Chấp thuận/Từ chối đơn.                              │
+  │ 13  │ Hiệu chỉnh thủ công │ /api/v1/admin/attendance/adjust  │ ✅ Đạt     │ Cho phép sửa giờ công kèm lý do.                                    │
+  │ 14  │ Xuất báo cáo        │ /api/v1/admin/reports/export     │ ✅ Đạt     │ Đã triển khai xuất file Excel (.xlsx) dùng Apache POI.              │
+  └─────┴─────────────────────┴──────────────────────────────────┴────────────┴─────────────────────────────────────────────────────────────────────┘
+
+  2. Phân hệ AI Microservice (Python FastAPI)
+
+
+  ┌─────┬────────────────┬──────────────────────┬────────────┬──────────────────────────────────────────────────────────────┐
+  │ STT │ API            │ Endpoint             │ Trạng thái │ Chi tiết kỹ thuật                                            │
+  ├─────┼────────────────┼──────────────────────┼────────────┼──────────────────────────────────────────────────────────────┤
+  │ 1   │ Extract Vector │ /internal/ai/embed   │ ✅ Đạt     │ Dùng DeepFace (Facenet) trả về vector 128 chiều.             │
+  │ 2   │ Compare Faces  │ /internal/ai/compare │ ✅ Đạt     │ So sánh ảnh Live (Base64) với Vector gốc, trả về similarity. │
+  └─────┴────────────────┴──────────────────────┴────────────┴──────────────────────────────────────────────────────────────┘
+
+var jsonData = pm.response.json();
+pm.environment.set("current_token", jsonData.data.accessToken);
+
+
+http://localhost:8081/api/v1/auth/login
+     {
+       "username": "anhdv",
+       "password": "password123"
+     }
+
+http://localhost:8081/api/v1/auth/ekyc
+
+eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI2Iiwicm9sZSI6IkVNUExPWUVFIiwiaWF0IjoxNzc1NDc0MDAyLCJleHAiOjE3NzU1NjA0MDJ9.KFZdK5xq9tBV8I2AYzPn4jUIMwJcB7e-k3iYdPcSE-JjdNhd0C-xOUJ3Sbihm5lAZlOR8BmZUNKGbZ82AkgPVA
+
+     {
+       "fromDate": "2026-04-15",
+       "toDate": "2026-04-16",
+       "leaveType": "ANNUAL",
+       "reason": "Giải quyết việc gia đình"
+     }
+
+
+       {
+          "username": "admin",
+          "password": "admin123"
+        }
+
+
+{
+       "username": "admin",
+       "password": "123456"
+     }
+
+
+
+ Hướng dẫn Phê duyệt eKYC trong Postman:
+   1. Auth: Sử dụng Bearer Token của Admin (admin / 123456).
+   2. Method: PUT
+   3. URL: http://localhost:8081/api/v1/admin/ekyc/{userId}/review
+       * (Thay {userId} bằng ID của nhân viên, ví dụ: http://localhost:8081/api/v1/admin/ekyc/6/review)
+   4. Body (raw -> JSON):
+
+     {
+       "status": "APPROVED"
+     }
+
+INSERT INTO shift_configs (id, shift_name, start_time, end_time, late_threshold_minutes, is_active)
+VALUES (1, 'Ca Test Toàn Thời Gian', '00:00:00', '23:59:59', 30, true);
