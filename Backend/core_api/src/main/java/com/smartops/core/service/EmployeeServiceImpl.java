@@ -40,9 +40,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .map(log -> AttendanceHistoryDTO.builder()
                         .id(log.getId())
                         .checkInTime(log.getCheckInTime())
+                        .checkOutTime(log.getCheckOutTime())
                         .status(log.getStatus())
-                        .method(log.getVerifiedByFace() ? "FACE_ID" : "MANUAL")
-                        .deviceId(log.getLocation())
+                        .method(log.getVerifiedByFace() != null && log.getVerifiedByFace() ? "FACE_ID" : "MANUAL")
+                        .shiftName(log.getShift() != null ? log.getShift().getShiftName() : "Ca làm việc")
+                        .location(log.getLocation() != null ? log.getLocation() : "Văn phòng")
                         .build())
                 .collect(Collectors.toList());
     }
@@ -150,6 +152,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
                 .assignedShiftId(user.getAssignedShift() != null ? user.getAssignedShift().getId() : null)
                 .assignedShiftName(user.getAssignedShift() != null ? user.getAssignedShift().getShiftName() : null)
+                .assignedShiftStartTime(user.getAssignedShift() != null ? user.getAssignedShift().getStartTime() : null)
+                .assignedShiftEndTime(user.getAssignedShift() != null ? user.getAssignedShift().getEndTime() : null)
+                .assignedShiftLocation(user.getAssignedShift() != null ? user.getAssignedShift().getLocation() : "Văn phòng")
+                .assignedShiftNotes(user.getAssignedShift() != null ? user.getAssignedShift().getNotes() : "Đúng giờ")
                 .idCardUrl(user.getFaceData() != null ? user.getFaceData().getIdCardUrl() : null)
                 .selfieUrl(user.getFaceData() != null ? user.getFaceData().getSelfieUrl() : null)
                 .build();

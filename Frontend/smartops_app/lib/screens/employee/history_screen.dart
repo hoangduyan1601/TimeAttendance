@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/services/api_service.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -13,45 +15,29 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final ApiService _apiService = ApiService();
-  List<dynamic> _history = [];
+  Map<DateTime, List<dynamic>> _events = {};
   bool _isLoading = true;
-  int _totalDays = 0;
-  int _lateDays = 0;
-  String _totalHours = "00h 00m";
-  String _filterType = 'MONTH'; // TODAY, WEEK, MONTH, CUSTOM
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
 
-  DateTime _startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _endDate = DateTime.now();
+  // Thống kê
+  int _totalOnTime = 0;
+  int _totalLate = 0;
+  int _totalAbsent = 0;
 
   @override
   void initState() {
     super.initState();
-    _fetchHistory();
-  }
-
-  void _updateFilter(String type) {
-    setState(() {
-      _filterType = type;
-      final now = DateTime.now();
-      if (type == 'TODAY') {
-        _startDate = now;
-        _endDate = now;
-      } else if (type == 'WEEK') {
-        _startDate = now.subtract(Duration(days: now.weekday - 1));
-        _endDate = now;
-      } else if (type == 'MONTH') {
-        _startDate = DateTime(now.year, now.month, 1);
-        _endDate = now;
-      }
-    });
+    _selectedDay = _focusedDay;
     _fetchHistory();
   }
 
   void _fetchHistory() async {
     setState(() => _isLoading = true);
     try {
-      final startStr = DateFormat('yyyy-MM-dd').format(_startDate);
-      final endStr = DateFormat('yyyy-MM-dd').format(_endDate);
+      // Lấy dữ liệu của 3 tháng gần nhất để hiển thị lịch
+      final startStr = DateFormat('yyyy-MM-dd').format(DateTime(_focusedDay.year, _focusedDay.month - 2, 1));
+      final endStr = DateFormat('yyyy-MM-dd').format(DateTime(_focusedDay.year, _focusedDay.month + 1, 0));
       
       final response = await _apiService.getAttendanceHistory(
         startDate: startStr,
@@ -59,27 +45,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
       
       if (mounted) {
-        setState(() {
-          _history = response['data'] ?? [];
-          _totalDays = _history.length;
-          _lateDays = _history.where((item) => item['status'] == 'LATE' || item['status'] == 'Đi muộn').length;
-          
-          // Tính tổng giờ làm giả định hoặc từ backend nếu có
-          double totalMins = 0;
-          for (var item in _history) {
-            if (item['checkInTime'] != null && item['checkOutTime'] != null) {
-              final inTime = DateTime.parse(item['checkInTime']);
-              final outTime = DateTime.parse(item['checkOutTime']);
-              totalMins += outTime.difference(inTime).inMinutes;
-            } else if (item['checkInTime'] != null) {
-              // Nếu chỉ có check-in, giả định làm đến giờ hiện tại hoặc ca chuẩn
-              totalMins += 480; // 8 tiếng
+        final List<dynamic> historyData = response['data'] ?? [];
+        Map<DateTime, List<dynamic>> newEvents = {};
+        
+        int onTime = 0;
+        int late = 0;
+
+        for (var item in historyData) {
+          if (item['checkInTime'] != null) {
+            final date = DateTime.parse(item['checkInTime']);
+            final dayKey = DateTime(date.year, date.month, date.day);
+            
+            if (newEvents[dayKey] == null) newEvents[dayKey] = [];
+            newEvents[dayKey]!.add(item);
+
+            final status = item['status']?.toString().toUpperCase() ?? '';
+            if (status.contains('ON_TIME') || status.contains('SUCCESS') || status.contains('ĐÚNG GIỜ')) {
+              onTime++;
+            } else if (status.contains('LATE') || status.contains('ĐI MUỘN')) {
+              late++;
             }
           }
-          int h = (totalMins / 60).floor();
-          int m = (totalMins % 60).round();
-          _totalHours = "${h.toString().padLeft(2, '0')}h ${m.toString().padLeft(2, '0')}m";
-          
+        }
+
+        setState(() {
+          _events = newEvents;
+          _totalOnTime = onTime;
+          _totalLate = late;
+          // Giả định số ngày công chuẩn trong tháng trừ đi số ngày đã chấm
+          _totalAbsent = 22 - (onTime + late); 
+          if (_totalAbsent < 0) _totalAbsent = 0;
           _isLoading = false;
         });
       }
@@ -89,9 +84,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  List<dynamic> _getEventsForDay(DateTime day) {
+    return _events[DateTime(day.year, day.month, day.day)] ?? [];
+  }
+
   Color _getStatusColor(String status) {
-    if (status == 'ON_TIME' || status == 'Đúng giờ' || status == 'SUCCESS') return AppTheme.success;
-    if (status == 'LATE' || status == 'Đi muộn') return AppTheme.warning;
+    status = status.toUpperCase();
+    if (status.contains('ON_TIME') || status.contains('SUCCESS') || status.contains('ĐÚNG GIỜ')) return AppTheme.success;
+    if (status.contains('LATE') || status.contains('ĐI MUỘN')) return AppTheme.warning;
     return AppTheme.error;
   }
 
@@ -103,211 +103,299 @@ class _HistoryScreenState extends State<HistoryScreen> {
         title: Text('LỊCH SỬ CHẤM CÔNG', style: GoogleFonts.montserrat(fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 1)),
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.date_range_rounded), 
-            onPressed: () async {
-              final picked = await showDateRangePicker(
-                context: context, 
-                firstDate: DateTime(2020), 
-                lastDate: DateTime.now(),
-                initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
-              );
-              if (picked != null) {
-                setState(() {
-                  _startDate = picked.start;
-                  _endDate = picked.end;
-                  _filterType = 'CUSTOM';
-                });
-                _fetchHistory();
-              }
-            }
-          ),
           IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _fetchHistory),
         ],
       ),
-      body: Column(
-        children: [
-          _buildFilterBar(),
-          _buildStatsBanner(),
-          Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryNavy))
-              : _history.isEmpty
-                  ? _buildEmptyState()
-                  : RefreshIndicator(
-                      onRefresh: () async => _fetchHistory(),
-                      color: AppTheme.primaryNavy,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: _history.length,
-                        itemBuilder: (context, index) => _buildHistoryCard(_history[index]),
-                      ),
-                    ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryNavy))
+        : SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildStatsSection(),
+                _buildCalendarSection(),
+                _buildDayDetailSection(),
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
-        ],
-      ),
     );
   }
 
-  Widget _buildFilterBar() {
+  Widget _buildStatsSection() {
     return Container(
-      color: AppTheme.primaryNavy,
-      padding: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _filterChip('Hôm nay', 'TODAY'),
-          _filterChip('Tuần này', 'WEEK'),
-          _filterChip('Tháng này', 'MONTH'),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterChip(String label, String type) {
-    bool isSelected = _filterType == type;
-    return GestureDetector(
-      onTap: () => _updateFilter(type),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.white.withOpacity(0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? AppTheme.white : Colors.transparent),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.montserrat(
-            color: isSelected ? AppTheme.white : Colors.white70,
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsBanner() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-      decoration: const BoxDecoration(
-        color: AppTheme.primaryNavy,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppTheme.radiusXl)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatItem('$_totalDays', 'TỔNG CÔNG', Icons.calendar_today_rounded),
-          Container(width: 1, height: 40, color: Colors.white24),
-          _buildStatItem('$_lateDays', 'ĐI MUỘN', Icons.access_time_rounded),
-          Container(width: 1, height: 40, color: Colors.white24),
-          _buildStatItem(_totalHours, 'TỔNG GIỜ', Icons.timer_outlined),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String value, String label, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.white70, size: 16),
-        const SizedBox(height: 8),
-        Text(value, style: GoogleFonts.poppins(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-        Text(label, style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history_rounded, size: 64, color: AppTheme.dividerColor),
-          const SizedBox(height: 16),
-          Text("Chưa có dữ liệu chấm công", style: GoogleFonts.montserrat(color: AppTheme.secondarySlate, fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryCard(Map<String, dynamic> item) {
-    final status = item['status'] ?? 'UNKNOWN';
-    final color = _getStatusColor(status);
-    final DateTime? checkIn = item['checkInTime'] != null ? DateTime.parse(item['checkInTime']) : null;
-    final DateTime? checkOut = item['checkOutTime'] != null ? DateTime.parse(item['checkOutTime']) : null;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppTheme.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        border: Border.all(color: AppTheme.dividerColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: AppTheme.softShadow,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    checkIn != null ? DateFormat('EEEE, dd/MM').format(checkIn).toUpperCase() : "N/A",
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.w800, fontSize: 14, color: AppTheme.textPrimary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item['shiftName'] ?? 'Ca chuẩn',
-                    style: GoogleFonts.montserrat(fontSize: 11, color: AppTheme.secondarySlate, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: color.withOpacity(0.5), width: 0.5),
-                ),
-                child: Text(
-                  status == 'ON_TIME' || status == 'SUCCESS' ? 'ĐÚNG GIỜ' : (status == 'LATE' ? 'ĐI MUỘN' : status),
-                  style: GoogleFonts.montserrat(color: color, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
-                ),
-              ),
-            ],
-          ),
+          Text("THỐNG KÊ THÁNG ${_focusedDay.month}", 
+            style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primaryNavy)),
           const SizedBox(height: 20),
           Row(
             children: [
-              _buildTimeInfo("VÀO CA", checkIn != null ? DateFormat('HH:mm').format(checkIn) : "--:--", Icons.login_rounded),
-              const Spacer(),
-              _buildTimeInfo("RA CA", checkOut != null ? DateFormat('HH:mm').format(checkOut) : "--:--", Icons.logout_rounded),
-              const Spacer(),
-              _buildTimeInfo("TỔNG GIỜ", "08h 00m", Icons.timer_outlined),
+              SizedBox(
+                height: 100,
+                width: 100,
+                child: PieChart(
+                  PieChartData(
+                    sectionsSpace: 2,
+                    centerSpaceRadius: 30,
+                    sections: [
+                      PieChartSectionData(value: _totalOnTime.toDouble(), color: AppTheme.success, radius: 10, showTitle: false),
+                      PieChartSectionData(value: _totalLate.toDouble(), color: AppTheme.warning, radius: 10, showTitle: false),
+                      PieChartSectionData(value: _totalAbsent.toDouble(), color: AppTheme.error.withOpacity(0.2), radius: 10, showTitle: false),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 30),
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildStatRow("Đúng giờ", _totalOnTime, AppTheme.success),
+                    _buildStatRow("Đi muộn", _totalLate, AppTheme.warning),
+                    _buildStatRow("Vắng mặt", _totalAbsent, AppTheme.error),
+                  ],
+                ),
+              )
             ],
-          ),
+          )
         ],
       ),
     );
   }
 
-  Widget _buildTimeInfo(String label, String time, IconData icon) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+  Widget _buildStatRow(String label, int value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text(label, style: GoogleFonts.montserrat(fontSize: 12, color: AppTheme.secondarySlate)),
+          const Spacer(),
+          Text("$value", style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: TableCalendar(
+        firstDay: DateTime.utc(2020, 1, 1),
+        lastDay: DateTime.utc(2030, 12, 31),
+        focusedDay: _focusedDay,
+        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+        calendarFormat: CalendarFormat.month,
+        eventLoader: _getEventsForDay,
+        onDaySelected: (selectedDay, focusedDay) {
+          setState(() {
+            _selectedDay = selectedDay;
+            _focusedDay = focusedDay;
+          });
+        },
+        headerStyle: HeaderStyle(
+          formatButtonVisible: false,
+          titleCentered: true,
+          titleTextStyle: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: AppTheme.primaryNavy),
+        ),
+        calendarStyle: CalendarStyle(
+          todayDecoration: BoxDecoration(color: AppTheme.primaryNavy.withOpacity(0.3), shape: BoxShape.circle),
+          selectedDecoration: const BoxDecoration(color: AppTheme.primaryNavy, shape: BoxShape.circle),
+          markerDecoration: const BoxDecoration(color: AppTheme.info, shape: BoxShape.circle),
+          markersMaxCount: 1,
+        ),
+        calendarBuilders: CalendarBuilders(
+          markerBuilder: (context, date, events) {
+            if (events.isEmpty) return null;
+            final event = events.first as Map<String, dynamic>;
+            final status = event['status']?.toString() ?? '';
+            return Container(
+              margin: const EdgeInsets.only(top: 25),
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: _getStatusColor(status),
+                shape: BoxShape.circle,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayDetailSection() {
+    final events = _getEventsForDay(_selectedDay ?? _focusedDay);
+    
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: Text(
+              "CHI TIẾT NGÀY ${DateFormat('dd/MM/yyyy').format(_selectedDay ?? _focusedDay)}",
+              style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primaryNavy),
+            ),
+          ),
+          if (events.isEmpty)
+            _buildEmptyDayState()
+          else
+            ...events.map((event) => _buildShiftCard(event)).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyDayState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(30),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(color: AppTheme.dividerColor),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.event_busy_rounded, color: AppTheme.dividerColor, size: 48),
+          const SizedBox(height: 12),
+          Text("Không có dữ liệu chấm công", style: GoogleFonts.montserrat(color: AppTheme.secondarySlate, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShiftCard(dynamic event) {
+    final status = event['status']?.toString() ?? 'N/A';
+    final color = _getStatusColor(status);
+    final DateTime? checkIn = event['checkInTime'] != null ? DateTime.parse(event['checkInTime']) : null;
+    final DateTime? checkOut = event['checkOutTime'] != null ? DateTime.parse(event['checkOutTime']) : null;
+
+    return GestureDetector(
+      onTap: () => _showShiftDetail(event),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(color: AppTheme.dividerColor),
+        ),
+        child: Row(
           children: [
-            Icon(icon, size: 10, color: AppTheme.secondarySlate),
-            const SizedBox(width: 4),
-            Text(label, style: GoogleFonts.montserrat(fontSize: 9, color: AppTheme.secondarySlate, fontWeight: FontWeight.bold)),
+            Container(
+              width: 4,
+              height: 40,
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(event['shiftName'] ?? 'Ca làm việc', 
+                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    checkIn != null ? "${DateFormat('HH:mm').format(checkIn)} - ${checkOut != null ? DateFormat('HH:mm').format(checkOut) : '--:--'}" : "Chưa vào ca",
+                    style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.secondarySlate),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                status.contains('ON_TIME') || status.contains('SUCCESS') ? "ĐÚNG GIỜ" : (status.contains('LATE') ? "ĐI MUỘN" : status),
+                style: GoogleFonts.montserrat(fontSize: 9, fontWeight: FontWeight.bold, color: color),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded, color: AppTheme.secondarySlate),
           ],
         ),
-        const SizedBox(height: 4),
-        Text(time, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-      ],
+      ),
+    );
+  }
+
+  void _showShiftDetail(dynamic event) {
+    final DateTime? checkIn = event['checkInTime'] != null ? DateTime.parse(event['checkInTime']) : null;
+    final DateTime? checkOut = event['checkOutTime'] != null ? DateTime.parse(event['checkOutTime']) : null;
+    final color = _getStatusColor(event['status']?.toString() ?? '');
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: AppTheme.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.dividerColor, borderRadius: BorderRadius.circular(2))),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Chi tiết ca làm", style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 18)),
+                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 16),
+            _buildDetailItem(Icons.work_outline_rounded, "Tên ca", event['shiftName'] ?? 'Ca chuẩn'),
+            _buildDetailItem(Icons.login_rounded, "Giờ vào", checkIn != null ? DateFormat('HH:mm:ss').format(checkIn) : "N/A", color: AppTheme.success),
+            _buildDetailItem(Icons.logout_rounded, "Giờ ra", checkOut != null ? DateFormat('HH:mm:ss').format(checkOut) : "Chưa chấm ra", color: AppTheme.error),
+            _buildDetailItem(Icons.location_on_outlined, "Vị trí", event['location'] ?? 'Văn phòng chính'),
+            _buildDetailItem(Icons.info_outline_rounded, "Trạng thái", event['status'] ?? 'N/A', color: color),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("ĐÓNG"),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailItem(IconData icon, String label, String value, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppTheme.secondarySlate),
+          const SizedBox(width: 12),
+          Text(label, style: GoogleFonts.montserrat(color: AppTheme.secondarySlate, fontSize: 13)),
+          const Spacer(),
+          Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14, color: color ?? AppTheme.textPrimary)),
+        ],
+      ),
     );
   }
 }

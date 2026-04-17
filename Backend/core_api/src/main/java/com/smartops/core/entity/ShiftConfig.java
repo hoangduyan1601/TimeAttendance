@@ -41,6 +41,12 @@ public class ShiftConfig {
     @Column(name = "late_threshold_minutes")
     private Integer lateThresholdMinutes;
 
+    @Column(name = "location")
+    private String location; // VD: Tầng 5 - Văn phòng chính
+
+    @Column(name = "notes")
+    private String notes; // VD: Chấm công đúng giờ
+
     @Column(name = "is_active")
     private Boolean isActive;
 }

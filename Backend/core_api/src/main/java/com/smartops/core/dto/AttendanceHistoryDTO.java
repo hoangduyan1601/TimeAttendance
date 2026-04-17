@@ -13,7 +13,10 @@ import java.time.LocalDateTime;
 public class AttendanceHistoryDTO {
     private Long id;
     private LocalDateTime checkInTime;
+    private LocalDateTime checkOutTime;
     private String status;
     private String method; // VD: FACE_ID, MANUAL
     private String deviceId;
+    private String shiftName;
+    private String location;
 }

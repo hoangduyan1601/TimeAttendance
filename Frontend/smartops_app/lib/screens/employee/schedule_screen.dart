@@ -20,6 +20,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
   List<dynamic> _allShifts = [];
   bool _isLoading = true;
   String _shiftName = "Đang tải...";
+  String _shiftTime = "00:00 - 00:00";
+  String _shiftLocation = "Văn phòng";
+  String _shiftNotes = "Đúng giờ";
   DateTime _selectedDate = DateTime.now();
   String _viewMode = 'WEEK'; // 'WEEK', 'MONTH'
   
@@ -59,7 +62,21 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
           _shiftChangeRequests = results[0]['data'] ?? [];
           _allShifts = results[1]['data'] ?? [];
           _leaveRequests = results[2]['data'] ?? [];
-          _shiftName = results[3]['data']['assignedShiftName'] ?? "Chưa phân ca";
+          
+          final profileData = results[3]['data'];
+          _shiftName = profileData['assignedShiftName'] ?? "Chưa phân ca";
+          
+          if (profileData['assignedShiftStartTime'] != null && profileData['assignedShiftEndTime'] != null) {
+            final start = profileData['assignedShiftStartTime'].toString().substring(0, 5);
+            final end = profileData['assignedShiftEndTime'].toString().substring(0, 5);
+            _shiftTime = "$start - $end";
+          } else {
+            _shiftTime = "--:-- - --:--";
+          }
+          
+          _shiftLocation = profileData['assignedShiftLocation'] ?? "Văn phòng";
+          _shiftNotes = profileData['assignedShiftNotes'] ?? "Đúng giờ";
+          
           if (_allShifts.isNotEmpty) _selectedShiftId = _allShifts.first['id'];
           _totalLeaves = _leaveRequests.where((l) => l['status'] == 'APPROVED').length;
           _isLoading = false;
@@ -241,7 +258,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
                           children: [
                             const Icon(Icons.access_time_rounded, size: 10, color: AppTheme.secondarySlate),
                             const SizedBox(width: 4),
-                            Text('08:00 - 17:30', style: GoogleFonts.montserrat(fontSize: 10, color: AppTheme.secondarySlate)),
+                            Text(_shiftTime, style: GoogleFonts.montserrat(fontSize: 10, color: AppTheme.secondarySlate)),
                           ],
                         ),
                       ],
@@ -322,11 +339,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
             else ...[
               _buildDetailInfoRow(Icons.work_rounded, 'Tên ca', _shiftName, AppTheme.textPrimary),
               const SizedBox(height: 20),
-              _buildDetailInfoRow(Icons.access_time_filled_rounded, 'Thời gian', '08:00 AM - 05:30 PM (8.5 giờ)', AppTheme.textPrimary),
+              _buildDetailInfoRow(Icons.access_time_filled_rounded, 'Thời gian', _shiftTime, AppTheme.textPrimary),
               const SizedBox(height: 20),
-              _buildDetailInfoRow(Icons.location_on_rounded, 'Địa điểm', 'Văn phòng chính - Tầng 5', AppTheme.textPrimary),
+              _buildDetailInfoRow(Icons.location_on_rounded, 'Địa điểm', _shiftLocation, AppTheme.textPrimary),
               const SizedBox(height: 20),
-              _buildDetailInfoRow(Icons.info_rounded, 'Ghi chú', 'Vui lòng chấm công đúng giờ quy định', AppTheme.secondarySlate),
+              _buildDetailInfoRow(Icons.info_rounded, 'Ghi chú', _shiftNotes, AppTheme.secondarySlate),
             ],
             const SizedBox(height: 40),
             Text('HÀNH ĐỘNG NHANH', style: GoogleFonts.montserrat(fontWeight: FontWeight.w800, fontSize: 12, color: AppTheme.secondarySlate, letterSpacing: 1)),

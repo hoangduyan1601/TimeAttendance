@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.time.LocalTime;
 
 @Data
 @Builder
@@ -22,6 +23,10 @@ public class UserResponseDTO {
     private Long departmentId;
     private Long assignedShiftId;
     private String assignedShiftName;
+    private LocalTime assignedShiftStartTime;
+    private LocalTime assignedShiftEndTime;
+    private String assignedShiftLocation;
+    private String assignedShiftNotes;
     private String idCardUrl;
     private String selfieUrl;
 }
