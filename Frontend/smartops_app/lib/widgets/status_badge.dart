@@ -32,8 +32,8 @@ class StatusBadge extends StatelessWidget {
         textColor = AppTheme.error;
         break;
       case BadgeType.primary:
-        backgroundColor = AppTheme.corporateBlue.withValues(alpha: 0.1);
-        textColor = AppTheme.corporateBlue;
+        backgroundColor = AppTheme.primaryNavy.withValues(alpha: 0.1);
+        textColor = AppTheme.primaryNavy;
         break;
       case BadgeType.neutral:
         backgroundColor = AppTheme.dividerColor.withValues(alpha: 0.3);

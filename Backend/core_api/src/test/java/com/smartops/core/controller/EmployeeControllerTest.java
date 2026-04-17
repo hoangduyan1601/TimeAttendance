@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -41,9 +42,11 @@ public class EmployeeControllerTest {
                 .checkInTime(LocalDateTime.now())
                 .build();
 
-        when(employeeService.getMyAttendanceHistory()).thenReturn(Collections.singletonList(mockHistory));
+        when(employeeService.getMyAttendanceHistory(anyString(), anyString())).thenReturn(Collections.singletonList(mockHistory));
 
-        mockMvc.perform(get("/api/v1/employee/attendance"))
+        mockMvc.perform(get("/api/v1/employee/attendance")
+                        .param("startDate", "2024-01-01")
+                        .param("endDate", "2024-01-31"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.data[0].status").value("ON_TIME"));

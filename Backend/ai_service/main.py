@@ -8,13 +8,14 @@ import io
 import base64
 import os
 
-# Tắt bớt log của TensorFlow để đỡ rối
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-app = FastAPI(title="SmartOps AI Microservice (DeepFace Edition)")
+app = FastAPI(title="SmartOps AI Microservice v2")
 
-# Chúng ta chọn mô hình Facenet để trả về vector 128 chiều như thiết kế
-MODEL_NAME = "Facenet" 
+# Chuyển sang VGG-Face: Rất ổn định với ảnh Webcam
+MODEL_NAME = "VGG-Face"
+# Sử dụng Cosine Similarity
+DISTANCE_METRIC = "cosine"
 
 class AiCompareRequest(BaseModel):
     storedVector: List[float]
@@ -22,85 +23,70 @@ class AiCompareRequest(BaseModel):
 
 @app.post("/internal/ai/embed")
 async def extract_vector(file: UploadFile = File(...)):
-    """
-    Nhận ảnh khuôn mặt, trả về mảng Vector số học (128 chiều).
-    """
     try:
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
         if img is None:
             raise HTTPException(status_code=400, detail="Không thể giải mã hình ảnh.")
 
-        # DeepFace.represent trả về list các khuôn mặt tìm thấy
-        # Mỗi item chứa 'embedding' (vector)
-        # Lưu ý: Lần đầu chạy nó sẽ tự tải model về (khoảng 100MB)
+        # Trích xuất vector
         results = DeepFace.represent(img_path=img, model_name=MODEL_NAME, enforce_detection=True)
-        
         if not results:
-            raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt trong ảnh.")
+            raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt.")
 
-        return {
-            "vector": results[0]["embedding"]
-        }
-    except ValueError as ve:
-        # Lỗi phổ biến: "Face could not be detected"
-        raise HTTPException(status_code=400, detail=f"Lỗi nhận diện: {str(ve)}")
+        return {"vector": results[0]["embedding"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/internal/ai/compare")
 async def compare_faces(request: AiCompareRequest):
-    """
-    Nhận ảnh trực tiếp (Base64) và Vector gốc, trả về tỷ lệ trùng khớp (%).
-    """
     try:
-        # Giải mã Base64
-        try:
-            if "," in request.liveImageBase64:
-                header, encoded = request.liveImageBase64.split(",", 1)
-            else:
-                encoded = request.liveImageBase64
-            
-            image_data = base64.b64decode(encoded)
-            nparr = np.frombuffer(image_data, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Lỗi giải mã Base64: {str(e)}")
+        # 1. Giải mã ảnh Live
+        header, encoded = request.liveImageBase64.split(",", 1) if "," in request.liveImageBase64 else ("", request.liveImageBase64)
+        image_data = base64.b64decode(encoded)
+        nparr = np.frombuffer(image_data, np.uint8)
+        live_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        if img is None:
-            raise HTTPException(status_code=400, detail="Không thể giải mã hình ảnh từ Base64.")
+        if live_img is None:
+            raise HTTPException(status_code=400, detail="Lỗi hình ảnh.")
 
-        # Trích xuất vector của ảnh live
-        live_results = DeepFace.represent(img_path=img, model_name=MODEL_NAME, enforce_detection=True)
+        # 2. Tạo ảnh tạm từ vector gốc để dùng hàm verify của DeepFace (đảm bảo độ chính xác cao nhất)
+        # Thay vì tính toán thủ công, ta để DeepFace tự handle normalization theo Model
+        # Ở đây ta sẽ trích xuất vector của ảnh live và tính khoảng cách
+        live_results = DeepFace.represent(img_path=live_img, model_name=MODEL_NAME, enforce_detection=True)
         if not live_results:
-            raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt trong ảnh trực tiếp.")
-            
+            raise HTTPException(status_code=400, detail="Không thấy mặt trong ảnh live.")
+        
         live_vector = live_results[0]["embedding"]
-
-        # So sánh 2 vector bằng Numpy để tránh phụ thuộc Scipy nếu cần
+        
+        # 3. Tính toán độ tương đồng
         a = np.array(request.storedVector)
         b = np.array(live_vector)
         
-        # Công thức tính Cosine Distance: 1 - Cosine Similarity
+        print(f">>> DEBUG: Stored Vector Len: {len(a)}, Live Vector Len: {len(b)}")
+        
+        if len(a) != len(b):
+            return {
+                "similarity": 0.0,
+                "isMatch": False,
+                "message": f"Lỗi: Kích thước vector không khớp ({len(a)} vs {len(b)}). Vui lòng eKYC lại."
+            }
+
         cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-        cos_dist = 1.0 - cos_sim
         
-        # Chuyển sang tỷ lệ tương đồng (0.0 - 1.0)
-        similarity = cos_sim # Similarity chính là cos_sim
+        # Nếu cos_sim là NaN hoặc cực nhỏ
+        if np.isnan(cos_sim): cos_sim = 0.0
         
-        # Ngưỡng (threshold) cho Facenet với Cosine distance thường là ~0.4 (similarity 0.6)
-        is_match = bool(cos_dist <= 0.4)
-        
+        similarity = float(cos_sim)
+        print(f">>> DEBUG: Similarity calculated: {similarity}")
+        is_match = bool(similarity >= 0.40) 
+
         return {
-            "similarity": round(float(similarity), 4),
-            "distance": float(cos_dist),
+            "similarity": round(similarity, 4),
             "isMatch": is_match,
-            "message": "Xác thực thành công" if is_match else "Khuôn mặt không khớp"
+            "message": "Thành công" if is_match else f"Không khớp ({round(similarity*100, 1)}%)"
         }
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=f"Lỗi nhận diện: {str(ve)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

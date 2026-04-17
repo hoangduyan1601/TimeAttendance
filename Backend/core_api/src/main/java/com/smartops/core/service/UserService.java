@@ -6,5 +6,7 @@ import java.util.List;
 
 public interface UserService {
     UserResponseDTO createUser(UserRequestDTO request);
+    UserResponseDTO updateUser(Long id, UserRequestDTO request);
+    void deleteUser(Long id);
     List<UserResponseDTO> getAllUsers();
 }

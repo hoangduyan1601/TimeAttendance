@@ -3,6 +3,7 @@ package com.smartops.core.controller;
 import com.smartops.core.dto.*;
 import com.smartops.core.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -18,9 +19,22 @@ public class KioskController {
     public ResponseEntity<ApiResponse<KioskVerifyResponse>> verify(@RequestBody KioskVerifyRequest request) {
         try {
             KioskVerifyResponse response = attendanceService.verify(request);
-            return ResponseEntity.ok(ApiResponse.success(response, "Xác thực chấm công thành công"));
+            return ResponseEntity.ok(ApiResponse.success(response, "Chấm công thành công"));
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/resolve-qr")
+    public ResponseEntity<ApiResponse<AuthResponse.UserSummary>> resolveQr(@RequestBody java.util.Map<String, String> request) {
+        try {
+            String qrToken = request.get("qrToken");
+            AuthResponse.UserSummary user = attendanceService.getUserByQrToken(qrToken);
+            return ResponseEntity.ok(ApiResponse.success(user, "Nhận diện nhân viên thành công"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
         }
     }
 

@@ -31,6 +31,12 @@ public class FaceData {
     @Column(name = "face_vector", columnDefinition = "float8[]")
     private double[] faceVector;
 
+    @Column(name = "id_card_url")
+    private String idCardUrl;
+
+    @Column(name = "selfie_url")
+    private String selfieUrl;
+
     @Column(name = "last_updated")
     private LocalDateTime lastUpdated;
 

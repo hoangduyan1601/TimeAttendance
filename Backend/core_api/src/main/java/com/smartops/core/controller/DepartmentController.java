@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/departments")
+@RequestMapping("/api/v1/admin/departments")
 @RequiredArgsConstructor
 public class DepartmentController {
 
@@ -28,5 +28,17 @@ public class DepartmentController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Department>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(departmentService.getDepartmentById(id), "Lấy thông tin thành công"));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<Department>> update(@PathVariable Long id, @RequestBody Department department) {
+        department.setId(id);
+        return ResponseEntity.ok(ApiResponse.success(departmentService.updateDepartment(department), "Cập nhật phòng ban thành công"));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
+        departmentService.deleteDepartment(id);
+        return ResponseEntity.ok(ApiResponse.success(null, "Xóa phòng ban thành công"));
     }
 }

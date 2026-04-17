@@ -30,6 +30,25 @@ public class AdminController {
     private final DashboardService dashboardService;
     private final ReportService reportService;
 
+    @GetMapping("/ekyc/pending")
+    public ResponseEntity<ApiResponse<java.util.List<com.smartops.core.dto.UserResponseDTO>>> getPendingEkyc() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getPendingEkycRequests(), "Lấy danh sách yêu cầu eKYC thành công"));
+    }
+
+    @GetMapping("/leaves")
+    public ResponseEntity<ApiResponse<java.util.List<com.smartops.core.dto.LeaveResponseDTO>>> getAllLeaves() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAllLeaveRequests(), "Lấy danh sách đơn từ thành công"));
+    }
+
+    @GetMapping("/attendance")
+    public ResponseEntity<ApiResponse<java.util.List<com.smartops.core.dto.AttendanceResponseDTO>>> getAttendanceReports(
+            @RequestParam("startDate") String startDate,
+            @RequestParam("endDate") String endDate) {
+        LocalDate start = LocalDate.parse(startDate);
+        LocalDate end = LocalDate.parse(endDate);
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAttendanceReports(start, end), "Lấy báo cáo chấm công thành công"));
+    }
+
     @PutMapping("/ekyc/{userId}/review")
     public ResponseEntity<ApiResponse<String>> reviewEkyc(
             @PathVariable Long userId,
@@ -88,5 +107,31 @@ public class AdminController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    @PutMapping("/users/{userId}/assign-shift")
+    public ResponseEntity<ApiResponse<Void>> assignShift(
+            @PathVariable Long userId,
+            @RequestParam Long shiftId) {
+        try {
+            adminService.assignShiftToUser(userId, shiftId);
+            return ResponseEntity.ok(ApiResponse.success(null, "Phân công ca làm việc thành công"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/shifts/monitoring/daily")
+    public ResponseEntity<ApiResponse<java.util.List<com.smartops.core.dto.ShiftMonitoringDTO>>> getDailyShiftMonitoring(
+            @RequestParam("date") String date) {
+        LocalDate localDate = LocalDate.parse(date);
+        return ResponseEntity.ok(ApiResponse.success(adminService.getDailyShiftMonitoring(localDate), "Lấy bảng phân ca theo ngày thành công"));
+    }
+
+    @GetMapping("/shifts/monitoring/weekly")
+    public ResponseEntity<ApiResponse<java.util.List<com.smartops.core.dto.ShiftMonitoringDTO>>> getWeeklyShiftMonitoring(
+            @RequestParam("startDate") String startDate) {
+        LocalDate start = LocalDate.parse(startDate);
+        return ResponseEntity.ok(ApiResponse.success(adminService.getWeeklyShiftMonitoring(start), "Lấy bảng phân ca theo tuần thành công"));
     }
 }

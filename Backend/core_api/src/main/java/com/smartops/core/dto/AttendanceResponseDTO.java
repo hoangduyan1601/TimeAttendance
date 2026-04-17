@@ -16,6 +16,7 @@ public class AttendanceResponseDTO {
     private String employeeCode;
     private String shiftName;
     private LocalDateTime checkInTime;
+    private LocalDateTime checkOutTime;
     private String status; // ON_TIME, LATE
     private long minutesLate; // Số phút đi muộn (nếu có)
 }

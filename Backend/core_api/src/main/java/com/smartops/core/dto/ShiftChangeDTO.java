@@ -4,20 +4,21 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
-public class LeaveResponseDTO {
+@AllArgsConstructor
+public class ShiftChangeDTO {
     private Long id;
-    private LocalDate fromDate;
-    private LocalDate toDate;
-    private String leaveType;
+    private Long userId;
+    private String fullName;
+    private Long oldShiftId;
+    private String oldShiftName;
+    private Long newShiftId;
+    private String newShiftName;
     private String reason;
     private String status;
-    private String fullName;
     private LocalDateTime createdAt;
 }

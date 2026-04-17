@@ -78,3 +78,58 @@ eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI2Iiwicm9sZSI6IkVNUExPWUVFIiwiaWF0IjoxNzc1NDc0MDA
 
 INSERT INTO shift_configs (id, shift_name, start_time, end_time, late_threshold_minutes, is_active)
 VALUES (1, 'Ca Test Toàn Thời Gian', '00:00:00', '23:59:59', 30, true);
+
+ UPDATE users 
+ SET password = '$2a$10$7zBvY7p0.4L6D7H6v1v6E.S6Q7M5I3J4Y5Z6A7B8C9D0E1F2G3H4' 
+ WHERE username IN ('admin', 'anhdv');
+
+
+
+ Giai đoạn 1: Thiết lập & Xác thực (Hệ thống cơ bản)
+   1. Kiểm tra Health Check: Đảm bảo cả Core API (Java) và AI Service
+      (Python) đều đang chạy.
+   2. Đăng nhập Admin: Sử dụng tài khoản admin để vào Dashboard.
+   3. Quản lý Phòng ban: Tạo mới hoặc kiểm tra danh sách phòng ban (để
+      gán cho nhân viên).
+   4. Tạo mới nhân sự (Admin): Admin tạo một tài khoản nhân viên mới
+      (User) để bắt đầu luồng kiểm thử.
+
+  Giai đoạn 2: Định danh Nhân sự (eKYC Flow)
+   5. Đăng nhập Nhân viên: Sử dụng tài khoản vừa tạo để đăng nhập trên
+      ứng dụng di động.
+   6. Đăng ký eKYC (Nhân viên): Chụp/Gửi ảnh CCCD và ảnh Selfie. 
+       * Lưu ý: Kiểm tra xem AI Service có trích xuất được Face Vector
+         (128D) từ ảnh không.
+   7. Phê duyệt eKYC (Admin): Admin vào mục "Duyệt eKYC" để xem ảnh và
+      chuyển trạng thái sang APPROVED. 
+       * Quan trọng: Chỉ sau bước này, nhân viên mới có thể chấm công
+         bằng khuôn mặt.
+
+  Giai đoạn 3: Nghiệp vụ Chấm công (Core Feature)
+   8. Sinh mã QR Động (Nhân viên): Nhân viên mở App để lấy mã QR (mã này
+      thay đổi sau mỗi 30s).
+   9. Nhận diện QR (Kiosk): Sử dụng mã QR quét tại Kiosk. Hệ thống phải
+      nhận diện đúng ID nhân viên.
+   10. Xác thực khuôn mặt AI (Kiosk): Kiosk chụp ảnh thực tế và so khớp
+       với ảnh Selfie lúc eKYC.
+       * Kết quả mong đợi: Nếu khớp > 80% (hoặc ngưỡng cấu hình), hệ
+         thống ghi nhận Check-in thành công.
+   11. Nhật ký trực tiếp (Kiosk/Admin): Kiểm tra xem bản ghi chấm công
+       có xuất hiện ngay lập tức trên Live Log không.
+  Giai đoạn 4: Quản lý Cá nhân & Đơn từ (Self-Service)
+   12. Xem lịch sử chấm công (Nhân viên): Kiểm tra danh sách các ngày
+       công đã thực hiện trên App.
+   13. Gửi đơn nghỉ phép (Nhân viên): Tạo đơn nghỉ phép (chọn ngày, loại
+       nghỉ, lý do).
+   14. Phê duyệt đơn từ (Admin): Admin xem danh sách đơn và nhấn
+       Duyệt/Từ chối.
+
+  Giai đoạn 5: Quản trị & Báo cáo (Analytics)
+   15. Thống kê Dashboard (Admin): Kiểm tra các con số tổng hợp: Tổng số
+       nhân viên, số người đi muộn, số người đang nghỉ phép trong ngày.
+   16. Cấu hình Ca làm việc (Admin): Thay đổi giờ vào/ra, thời gian châm
+       chước và kiểm tra xem logic chấm công có thay đổi theo không.
+   17. Hiệu chỉnh công (Admin): Admin sửa giờ chấm công cho nhân viên
+       (trường hợp quên quẹt thẻ) và kiểm tra lại lịch sử.
+   18. Xuất báo cáo Excel (Admin): Tải file báo cáo chuyên cần (.xlsx)
+       và kiểm tra tính chính xác của dữ liệu trong file.

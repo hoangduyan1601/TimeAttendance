@@ -18,6 +18,8 @@ public interface AttendanceLogRepository extends JpaRepository<AttendanceLog, Lo
     List<AttendanceLog> findByUserIdOrderByCheckInTimeDesc(Long userId);
     
     Optional<AttendanceLog> findByUserIdAndCheckInTimeBetween(Long userId, LocalDateTime start, LocalDateTime end);
+    
+    List<AttendanceLog> findAllByUserIdAndCheckInTimeBetween(Long userId, LocalDateTime start, LocalDateTime end);
 
     @Query("SELECT COUNT(DISTINCT a.user.id) FROM AttendanceLog a WHERE a.checkInTime BETWEEN :start AND :end")
     long countPresentUsers(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

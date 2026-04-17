@@ -44,15 +44,13 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public QrResponse generateQrCode(Long userId) {
-        long now = System.currentTimeMillis();
-        long expiresAt = now + 30000; // 30 seconds expiry
-
-        String rawData = userId + ":" + now;
+        // Chuyển sang QR tĩnh: Chỉ chứa User ID, không có thời gian hết hạn
+        String rawData = "SMARTOPS_USER_" + userId; 
         String qrToken = Base64.getEncoder().encodeToString(rawData.getBytes(StandardCharsets.UTF_8));
 
         return QrResponse.builder()
                 .qrToken(qrToken)
-                .expiresAt(expiresAt)
+                .expiresAt(0L) // 0 nghĩa là không bao giờ hết hạn
                 .build();
     }
 }

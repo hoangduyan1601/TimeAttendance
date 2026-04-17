@@ -24,4 +24,16 @@ public class DepartmentService {
         return departmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Phòng ban không tồn tại với id: " + id));
     }
+
+    public Department updateDepartment(Department department) {
+        Department existing = getDepartmentById(department.getId());
+        existing.setName(department.getName());
+        existing.setDescription(department.getDescription());
+        return departmentRepository.save(existing);
+    }
+
+    public void deleteDepartment(Long id) {
+        Department existing = getDepartmentById(id);
+        departmentRepository.delete(existing);
+    }
 }

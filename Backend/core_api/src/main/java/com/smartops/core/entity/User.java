@@ -61,6 +61,10 @@ public class User {
     @JoinColumn(name = "department_id")
     private Department department;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_shift_id")
+    private ShiftConfig assignedShift;
+
     // Một nhân sự có một dữ liệu khuôn mặt (quan hệ 1-1)
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private FaceData faceData;

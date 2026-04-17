@@ -14,6 +14,8 @@ public class UserRequestDTO {
     private String password;
     private String email; // Thêm trường này
     private String fullName;
+    private String phoneNumber;
     private String role;
     private Long departmentId;
+    private Long assignedShiftId;
 }

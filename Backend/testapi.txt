@@ -1,0 +1,130 @@
+### BASE URL: http://localhost:9090
+
+# --- Health Check ---
+curl -X GET http://localhost:9090/health
+
+# --- Auth Controller ---
+# Login (Đăng nhập để lấy TOKEN)
+curl -X POST http://localhost:9090/api/v1/auth/login \
+     -H "Content-Type: application/json" \
+     -d "{\"username\": \"admin\", \"password\": \"password\"}"
+
+# Register eKYC (Multipart - yêu cầu file)
+curl -X POST http://localhost:9090/api/v1/auth/ekyc \
+     -H "Authorization: Bearer <TOKEN>" \
+     -F "id_card=@path/to/id_card.jpg" \
+     -F "selfie=@path/to/selfie.jpg"
+
+# Get QR Code
+curl -X GET http://localhost:9090/api/v1/auth/qr-code \
+     -H "Authorization: Bearer <TOKEN>"
+
+# --- Admin Controller ---
+# Get Pending eKYC
+curl -X GET http://localhost:9090/api/v1/admin/ekyc/pending \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Get All Leave Requests
+curl -X GET http://localhost:9090/api/v1/admin/leaves \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Get Attendance Reports (Thay đổi startDate/endDate)
+curl -X GET "http://localhost:9090/api/v1/admin/attendance?startDate=2024-01-01&endDate=2024-12-31" \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Review eKYC
+curl -X PUT http://localhost:9090/api/v1/admin/ekyc/1/review \
+     -H "Authorization: Bearer <TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d "{\"status\": \"APPROVED\", \"note\": \"Hồ sơ hợp lệ\"}"
+
+# Export Attendance Report to Excel
+curl -X GET "http://localhost:9090/api/v1/admin/reports/export?startDate=2024-01-01&endDate=2024-12-31" \
+     -H "Authorization: Bearer <TOKEN>" --output attendance_report.xlsx
+
+# Dashboard Statistics
+curl -X GET http://localhost:9090/api/v1/admin/dashboard/stats \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Review Leave Request
+curl -X PUT http://localhost:9090/api/v1/admin/leaves/1/review \
+     -H "Authorization: Bearer <TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d "{\"status\": \"APPROVED\", \"reason\": \"Chấp thuận\"}"
+
+# Adjust Attendance Manually
+curl -X POST http://localhost:9090/api/v1/admin/attendance/adjust \
+     -H "Authorization: Bearer <TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d "{\"userId\": 1, \"date\": \"2024-04-16\", \"checkIn\": \"08:00:00\", \"checkOut\": \"17:00:00\"}"
+
+# Assign Shift to User
+curl -X PUT "http://localhost:9090/api/v1/admin/users/1/assign-shift?shiftId=1" \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Daily Shift Monitoring
+curl -X GET "http://localhost:9090/api/v1/admin/shifts/monitoring/daily?date=2024-04-16" \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Weekly Shift Monitoring
+curl -X GET "http://localhost:9090/api/v1/admin/shifts/monitoring/weekly?startDate=2024-04-15" \
+     -H "Authorization: Bearer <TOKEN>"
+
+# --- Department Controller ---
+# Get All Departments
+curl -X GET http://localhost:9090/api/v1/admin/departments \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Create Department
+curl -X POST http://localhost:9090/api/v1/admin/departments \
+     -H "Authorization: Bearer <TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d "{\"name\": \"Phòng Kỹ thuật\", \"description\": \"Hỗ trợ phần mềm\"}"
+
+# --- Employee Controller ---
+# Get My Attendance History
+curl -X GET "http://localhost:9090/api/v1/employee/attendance?startDate=2024-04-01&endDate=2024-04-30" \
+     -H "Authorization: Bearer <TOKEN>"
+
+# Submit Leave Request
+curl -X POST http://localhost:9090/api/v1/employee/leave \
+     -H "Authorization: Bearer <TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d "{\"startDate\": \"2024-05-01\", \"endDate\": \"2024-05-02\", \"reason\": \"Nghỉ phép năm\", \"type\": \"ANNUAL_LEAVE\"}"
+
+# Get My Profile
+curl -X GET http://localhost:9090/api/v1/employee/me \
+     -H "Authorization: Bearer <TOKEN>"
+
+# --- Kiosk Controller ---
+# Verify (Face/QR)
+curl -X POST http://localhost:9090/api/v1/kiosk/verify \
+     -H "Content-Type: application/json" \
+     -d "{\"type\": \"QR\", \"token\": \"QR_TOKEN_HERE\", \"deviceId\": \"KIOSK-01\"}"
+
+# Resolve QR Token
+curl -X POST http://localhost:9090/api/v1/kiosk/resolve-qr \
+     -H "Content-Type: application/json" \
+     -d "{\"qrToken\": \"QR_TOKEN_HERE\"}"
+
+# Get Live Logs
+curl -X GET http://localhost:9090/api/v1/kiosk/live-logs \
+     -H "Authorization: Bearer <TOKEN>"
+
+# --- Shift Controller (Admin) ---
+# Create Shift Config
+curl -X POST http://localhost:9090/api/v1/admin/shifts \
+     -H "Authorization: Bearer <TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d "{\"name\": \"Ca Sáng\", \"startTime\": \"08:00:00\", \"endTime\": \"12:00:00\"}"
+
+# --- User Controller (Admin) ---
+# Create New User/Employee
+curl -X POST http://localhost:9090/api/v1/admin/users \
+     -H "Authorization: Bearer <TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d "{\"username\": \"nv01\", \"fullName\": \"Nguyễn Văn A\", \"email\": \"nva@example.com\", \"role\": \"EMPLOYEE\", \"departmentId\": 1}"
+
+# Get All Users
+curl -X GET http://localhost:9090/api/v1/admin/users \
+     -H "Authorization: Bearer <TOKEN>"

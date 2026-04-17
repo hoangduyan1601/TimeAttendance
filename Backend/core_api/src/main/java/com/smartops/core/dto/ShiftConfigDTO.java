@@ -15,4 +15,5 @@ public class ShiftConfigDTO {
     private String startTime; // "HH:mm"
     private String endTime;   // "HH:mm"
     private int gracePeriod;  // số phút châm chước
+    private Boolean isActive;
 }

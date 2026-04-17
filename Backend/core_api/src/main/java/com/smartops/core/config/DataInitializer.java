@@ -58,5 +58,28 @@ public class DataInitializer implements CommandLineRunner {
         }
         
         userRepository.save(admin);
+
+        // 3. Tạo tài khoản nhân viên 'anque' với mật khẩu '123456'
+        Optional<User> existingAnque = userRepository.findByUsername("anque");
+        if (existingAnque.isPresent()) {
+            User anque = existingAnque.get();
+            anque.setPassword(passwordEncoder.encode("123456"));
+            userRepository.save(anque);
+            System.out.println(">>> Đã CẬP NHẬT mật khẩu cho 'anque' thành: 123456");
+        } else {
+            User anque = User.builder()
+                    .username("anque")
+                    .password(passwordEncoder.encode("123456"))
+                    .fullName("An Quế")
+                    .email("anque@smartops.com")
+                    .role("EMPLOYEE")
+                    .employeeCode("NV-ANQUE")
+                    .status("ACTIVE")
+                    .ekycStatus("PENDING")
+                    .department(dept)
+                    .build();
+            userRepository.save(anque);
+            System.out.println(">>> Đã TẠO MỚI tài khoản Nhân viên: anque / 123456");
+        }
     }
 }

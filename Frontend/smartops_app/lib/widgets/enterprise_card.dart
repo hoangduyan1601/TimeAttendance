@@ -27,8 +27,8 @@ class EnterpriseCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: color ?? AppTheme.white,
-        borderRadius: BorderRadius.circular(AppTheme.borderRadiusLg),
-        boxShadow: AppTheme.softShadows,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.softShadow,
         border: Border.all(color: AppTheme.dividerColor, width: 0.5),
       ),
       child: child,
@@ -38,7 +38,7 @@ class EnterpriseCard extends StatelessWidget {
       return Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppTheme.borderRadiusLg),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           onTap: onTap,
           child: cardContent,
         ),

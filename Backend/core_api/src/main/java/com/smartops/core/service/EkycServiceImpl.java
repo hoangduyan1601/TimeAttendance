@@ -60,8 +60,9 @@ public class EkycServiceImpl implements EkycService {
                 .orElse(FaceData.builder().user(user).build());
 
         faceData.setFaceVector(faceVector);
-        // URL để hiển thị: http://localhost:8081/uploads/ekyc/SELFIE_...
-        String selfieUrl = "/uploads/ekyc/" + selfieFileName;
+        // URL để hiển thị: http://localhost:8081/api/v1/uploads/ekyc/SELFIE_...
+        faceData.setIdCardUrl("/uploads/ekyc/" + idCardFileName);
+        faceData.setSelfieUrl("/uploads/ekyc/" + selfieFileName);
         faceData.setLastUpdated(LocalDateTime.now());
         faceDataRepository.save(faceData);
 
@@ -69,7 +70,7 @@ public class EkycServiceImpl implements EkycService {
         user.setEkycStatus("PENDING");
         userRepository.save(user);
 
-        log.info("Đã đăng ký eKYC thành công cho User ID: {}. Ảnh lưu tại: {}", userId, selfieUrl);
+        log.info("Đã đăng ký eKYC thành công cho User ID: {}. Ảnh lưu tại: {}", userId, faceData.getSelfieUrl());
     }
 
     private String saveFile(MultipartFile file, String prefix) {

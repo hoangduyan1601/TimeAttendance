@@ -6,7 +6,7 @@ import 'package:smartops_app/screens/auth/login_screen.dart';
 import 'package:smartops_app/screens/employee/ekyc_screen.dart';
 import 'package:smartops_app/screens/employee/history_screen.dart';
 import 'package:smartops_app/screens/employee/home_screen.dart';
-import 'package:smartops_app/screens/employee/leave_screen.dart';
+import 'package:smartops_app/screens/employee/schedule_screen.dart';
 import 'package:smartops_app/screens/kiosk/kiosk_screen.dart';
 
 void main() {
@@ -28,7 +28,7 @@ class SmartOpsApp extends StatelessWidget {
         AppRoutes.employeeHome: (context) => const EmployeeHomeScreen(),
         AppRoutes.employeeEkyc: (context) => const EkycScreen(),
         AppRoutes.employeeHistory: (context) => const HistoryScreen(),
-        AppRoutes.employeeLeave: (context) => const LeaveScreen(),
+        AppRoutes.employeeSchedule: (context) => const ScheduleScreen(),
         AppRoutes.adminDashboard: (context) => const AdminDashboardScreen(),
         AppRoutes.kiosk: (context) => const KioskScreen(),
       },
