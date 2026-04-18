@@ -1,130 +1,79 @@
-### BASE URL: http://localhost:9090
+================================================================================
+HƯỚNG DẪN CHI TIẾT TEST API HỆ THỐNG ĐIỂM DANH SMARTOPS
+================================================================================
 
-# --- Health Check ---
-curl -X GET http://localhost:9090/health
+I. AI MICROSERVICE (PYTHON - PORT 8000)
+--------------------------------------------------------------------------------
+Dịch vụ này xử lý trực tiếp các tác vụ AI (DeepFace).
 
-# --- Auth Controller ---
-# Login (Đăng nhập để lấy TOKEN)
-curl -X POST http://localhost:9090/api/v1/auth/login \
-     -H "Content-Type: application/json" \
-     -d "{\"username\": \"admin\", \"password\": \"password\"}"
+1. API Trích xuất đặc trưng (Embedding)
+   - URL: http://localhost:8000/internal/ai/embed
+   - Method: POST
+   - Cấu hình Postman:
+     + Tab Body -> Chọn "form-data"
+     + Key: Nhập "file" -> Di chuột vào chữ "file", chọn kiểu "File" (thay vì Text)
+     + Value: Nhấn "Select Files" và chọn 1 ảnh chân dung rõ mặt.
+   - Kết quả mong đợi: Trả về JSON chứa mảng "vector" gồm các số thực.
 
-# Register eKYC (Multipart - yêu cầu file)
-curl -X POST http://localhost:9090/api/v1/auth/ekyc \
-     -H "Authorization: Bearer <TOKEN>" \
-     -F "id_card=@path/to/id_card.jpg" \
-     -F "selfie=@path/to/selfie.jpg"
+2. API So sánh khuôn mặt (Compare)
+   - URL: http://localhost:8000/internal/ai/compare
+   - Method: POST
+   - Cấu hình Postman:
+     + Tab Body -> Chọn "raw" -> Chọn định dạng "JSON"
+     + Nội dung mẫu:
+       {
+         "storedVector": [0.12, -0.05, ...], // Mảng lấy từ kết quả API /embed
+         "liveImageBase64": "data:image/jpeg;base64,/9j/4AAQSkZ..." // Ảnh base64
+       }
+   - Kết quả mong đợi: {"isMatch": true/false, "similarity": 0.xx}
 
-# Get QR Code
-curl -X GET http://localhost:9090/api/v1/auth/qr-code \
-     -H "Authorization: Bearer <TOKEN>"
+II. BACKEND CORE API (JAVA - PORT 9090)
+--------------------------------------------------------------------------------
+Lưu ý: Port của backend chính là 9090.
 
-# --- Admin Controller ---
-# Get Pending eKYC
-curl -X GET http://localhost:9090/api/v1/admin/ekyc/pending \
-     -H "Authorization: Bearer <TOKEN>"
+1. API Đăng nhập (Lấy Token)
+   - URL: http://localhost:9090/api/v1/auth/login
+   - Method: POST
+   - Body (raw - JSON):
+     {
+       "username": "admin",
+       "password": "password123"
+     }
+   - Kết quả: Copy chuỗi "token" trong phần "data" để dùng cho các API sau.
 
-# Get All Leave Requests
-curl -X GET http://localhost:9090/api/v1/admin/leaves \
-     -H "Authorization: Bearer <TOKEN>"
+2. API Đăng ký định danh (eKYC) - CẦN TOKEN
+   - URL: http://localhost:9090/api/v1/auth/ekyc
+   - Method: POST
+   - Tab Auth: Chọn "Bearer Token" -> Dán mã Token vừa copy ở trên.
+   - Tab Body -> Chọn "form-data":
+     + Key 1: "id_card" (Kiểu File) -> Chọn ảnh CCCD
+     + Key 2: "selfie" (Kiểu File) -> Chọn ảnh chân dung
+   - Vai trò: Lưu khuôn mặt của nhân viên vào hệ thống.
 
-# Get Attendance Reports (Thay đổi startDate/endDate)
-curl -X GET "http://localhost:9090/api/v1/admin/attendance?startDate=2024-01-01&endDate=2024-12-31" \
-     -H "Authorization: Bearer <TOKEN>"
+3. API Điểm danh tại Kiosk (Verify)
+   - URL: http://localhost:9090/api/v1/kiosk/verify
+   - Method: POST
+   - Body (raw - JSON):
+     {
+       "kioskId": "KIOSK-01",
+       "qrToken": "U01BUlRPUFNfVVNFUl8x", // Token lấy từ app Flutter của nhân viên
+       "liveImageBase64": "data:image/jpeg;base64,..." // Ảnh chụp từ camera Kiosk
+     }
+   - Ghi chú: "qrToken" thực chất là chuỗi "SMARTOPS_USER_{id}" được mã hóa Base64.
+     Ví dụ id=1: "SMARTOPS_USER_1" -> Mã hóa Base64 -> "U01BUlRPUFNfVVNFUl8x"
 
-# Review eKYC
-curl -X PUT http://localhost:9090/api/v1/admin/ekyc/1/review \
-     -H "Authorization: Bearer <TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d "{\"status\": \"APPROVED\", \"note\": \"Hồ sơ hợp lệ\"}"
+III. CÁC LỖI THƯỜNG GẶP KHI TEST
+--------------------------------------------------------------------------------
+1. Lỗi "Field required":
+   - Nguyên nhân: Chưa chọn đúng kiểu "File" trong tab form-data hoặc sai tên Key.
+   - Khắc phục: Đảm bảo Key là "file" (với AI service) hoặc "selfie"/"id_card" (với Core API).
 
-# Export Attendance Report to Excel
-curl -X GET "http://localhost:9090/api/v1/admin/reports/export?startDate=2024-01-01&endDate=2024-12-31" \
-     -H "Authorization: Bearer <TOKEN>" --output attendance_report.xlsx
+2. Lỗi "401 Unauthorized":
+   - Nguyên nhân: Chưa gửi kèm Token hoặc Token hết hạn.
+   - Khắc phục: Đăng nhập lại và cập nhật Token mới trong tab Authorization.
 
-# Dashboard Statistics
-curl -X GET http://localhost:9090/api/v1/admin/dashboard/stats \
-     -H "Authorization: Bearer <TOKEN>"
+3. Lỗi "Connection Refused":
+   - Nguyên nhân: Chưa bật server Python (port 8000) hoặc Java (port 9090).
+   - Khắc phục: Chạy 'python main.py' và 'mvn spring-boot:run'.
 
-# Review Leave Request
-curl -X PUT http://localhost:9090/api/v1/admin/leaves/1/review \
-     -H "Authorization: Bearer <TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d "{\"status\": \"APPROVED\", \"reason\": \"Chấp thuận\"}"
-
-# Adjust Attendance Manually
-curl -X POST http://localhost:9090/api/v1/admin/attendance/adjust \
-     -H "Authorization: Bearer <TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d "{\"userId\": 1, \"date\": \"2024-04-16\", \"checkIn\": \"08:00:00\", \"checkOut\": \"17:00:00\"}"
-
-# Assign Shift to User
-curl -X PUT "http://localhost:9090/api/v1/admin/users/1/assign-shift?shiftId=1" \
-     -H "Authorization: Bearer <TOKEN>"
-
-# Daily Shift Monitoring
-curl -X GET "http://localhost:9090/api/v1/admin/shifts/monitoring/daily?date=2024-04-16" \
-     -H "Authorization: Bearer <TOKEN>"
-
-# Weekly Shift Monitoring
-curl -X GET "http://localhost:9090/api/v1/admin/shifts/monitoring/weekly?startDate=2024-04-15" \
-     -H "Authorization: Bearer <TOKEN>"
-
-# --- Department Controller ---
-# Get All Departments
-curl -X GET http://localhost:9090/api/v1/admin/departments \
-     -H "Authorization: Bearer <TOKEN>"
-
-# Create Department
-curl -X POST http://localhost:9090/api/v1/admin/departments \
-     -H "Authorization: Bearer <TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d "{\"name\": \"Phòng Kỹ thuật\", \"description\": \"Hỗ trợ phần mềm\"}"
-
-# --- Employee Controller ---
-# Get My Attendance History
-curl -X GET "http://localhost:9090/api/v1/employee/attendance?startDate=2024-04-01&endDate=2024-04-30" \
-     -H "Authorization: Bearer <TOKEN>"
-
-# Submit Leave Request
-curl -X POST http://localhost:9090/api/v1/employee/leave \
-     -H "Authorization: Bearer <TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d "{\"startDate\": \"2024-05-01\", \"endDate\": \"2024-05-02\", \"reason\": \"Nghỉ phép năm\", \"type\": \"ANNUAL_LEAVE\"}"
-
-# Get My Profile
-curl -X GET http://localhost:9090/api/v1/employee/me \
-     -H "Authorization: Bearer <TOKEN>"
-
-# --- Kiosk Controller ---
-# Verify (Face/QR)
-curl -X POST http://localhost:9090/api/v1/kiosk/verify \
-     -H "Content-Type: application/json" \
-     -d "{\"type\": \"QR\", \"token\": \"QR_TOKEN_HERE\", \"deviceId\": \"KIOSK-01\"}"
-
-# Resolve QR Token
-curl -X POST http://localhost:9090/api/v1/kiosk/resolve-qr \
-     -H "Content-Type: application/json" \
-     -d "{\"qrToken\": \"QR_TOKEN_HERE\"}"
-
-# Get Live Logs
-curl -X GET http://localhost:9090/api/v1/kiosk/live-logs \
-     -H "Authorization: Bearer <TOKEN>"
-
-# --- Shift Controller (Admin) ---
-# Create Shift Config
-curl -X POST http://localhost:9090/api/v1/admin/shifts \
-     -H "Authorization: Bearer <TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d "{\"name\": \"Ca Sáng\", \"startTime\": \"08:00:00\", \"endTime\": \"12:00:00\"}"
-
-# --- User Controller (Admin) ---
-# Create New User/Employee
-curl -X POST http://localhost:9090/api/v1/admin/users \
-     -H "Authorization: Bearer <TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d "{\"username\": \"nv01\", \"fullName\": \"Nguyễn Văn A\", \"email\": \"nva@example.com\", \"role\": \"EMPLOYEE\", \"departmentId\": 1}"
-
-# Get All Users
-curl -X GET http://localhost:9090/api/v1/admin/users \
-     -H "Authorization: Bearer <TOKEN>"
+================================================================================

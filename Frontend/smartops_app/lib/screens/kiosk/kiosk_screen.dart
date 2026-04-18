@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/services/api_service.dart';
+import 'package:smartops_app/widgets/responsive_layout.dart';
 
 enum KioskState { idle, scanning, processing, success, failure }
 
@@ -135,47 +136,72 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    bool isMobile = ResponsiveLayout.isMobile(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
-      body: Row(
-        children: [
-          // Main Monitoring Area
-          Expanded(
-            flex: 7,
-            child: Stack(
-              children: [
-                // Camera View
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: 0.8,
-                    child: MobileScanner(
-                      controller: _scannerController,
-                      onDetect: _onDetect,
-                    ),
-                  ),
-                ),
-                
-                // Futuristic Overlay
-                _buildTechOverlay(),
-                
-                // Status HUD
-                _buildStatusHud(),
-                
-                // Scanning Animation
-                if (_currentState == KioskState.scanning || _currentState == KioskState.processing)
-                  _buildScanningLine(),
-                  
-                // Result Feedback
-                if (_currentState == KioskState.success || _currentState == KioskState.failure)
-                  _buildResultOverlay(),
-              ],
+      appBar: isMobile ? AppBar(
+        backgroundColor: const Color(0xFF0F172A),
+        title: Text('KIOSK TERMINAL', style: GoogleFonts.shareTechMono(color: AppTheme.info)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ) : null,
+      body: ResponsiveLayout(
+        mobileBody: Column(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildCameraArea(),
+            ),
+            Expanded(
+              flex: 1,
+              child: _buildSidePanel(isMobile: true),
+            ),
+          ],
+        ),
+        desktopBody: Row(
+          children: [
+            Expanded(
+              flex: 7,
+              child: _buildCameraArea(),
+            ),
+            _buildSidePanel(isMobile: false),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraArea() {
+    return Stack(
+      children: [
+        // Camera View
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.8,
+            child: MobileScanner(
+              controller: _scannerController,
+              onDetect: _onDetect,
             ),
           ),
-
-          // Side Intelligence Panel
-          _buildSidePanel(),
-        ],
-      ),
+        ),
+        
+        // Futuristic Overlay
+        _buildTechOverlay(),
+        
+        // Status HUD
+        _buildStatusHud(),
+        
+        // Scanning Animation
+        if (_currentState == KioskState.scanning || _currentState == KioskState.processing)
+          _buildScanningLine(),
+          
+        // Result Feedback
+        if (_currentState == KioskState.success || _currentState == KioskState.failure)
+          _buildResultOverlay(),
+      ],
     );
   }
 
@@ -324,41 +350,47 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildSidePanel() {
-    return Expanded(
-      flex: 3,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF0F172A),
-          border: Border(left: BorderSide(color: Colors.white10, width: 1)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              width: double.infinity,
-              color: Colors.black26,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('TERMINAL LOGS', style: GoogleFonts.shareTechMono(color: AppTheme.info, fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text('REAL-TIME TRAFFIC MONITORING', style: GoogleFonts.shareTechMono(color: Colors.white38, fontSize: 10)),
-                ],
-              ),
+  Widget _buildSidePanel({required bool isMobile}) {
+    Widget content = Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        border: isMobile ? const Border(top: BorderSide(color: Colors.white10, width: 1)) : const Border(left: BorderSide(color: Colors.white10, width: 1)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            width: double.infinity,
+            color: Colors.black26,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('TERMINAL LOGS', style: GoogleFonts.shareTechMono(color: AppTheme.info, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('REAL-TIME TRAFFIC MONITORING', style: GoogleFonts.shareTechMono(color: Colors.white38, fontSize: 10)),
+              ],
             ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _liveLogs.length,
-                itemBuilder: (context, index) => _buildLogEntry(_liveLogs[index]),
-              ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _liveLogs.length,
+              itemBuilder: (context, index) => _buildLogEntry(_liveLogs[index]),
             ),
-            _buildCurrentStatusFooter(),
-          ],
-        ),
+          ),
+          _buildCurrentStatusFooter(),
+        ],
       ),
     );
+
+    if (isMobile) {
+      return content;
+    } else {
+      return Expanded(
+        flex: 3,
+        child: content,
+      );
+    }
   }
 
   Widget _buildLogEntry(Map<String, dynamic> log) {

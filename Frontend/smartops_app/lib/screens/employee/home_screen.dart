@@ -9,6 +9,7 @@ import 'package:smartops_app/services/api_service.dart';
 import 'package:smartops_app/screens/employee/ekyc_screen.dart';
 import 'package:smartops_app/screens/employee/history_screen.dart';
 import 'package:smartops_app/screens/employee/schedule_screen.dart';
+import 'package:smartops_app/widgets/responsive_layout.dart';
 
 class EmployeeHomeScreen extends StatefulWidget {
   const EmployeeHomeScreen({super.key});
@@ -93,22 +94,39 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isMobile = ResponsiveLayout.isMobile(context);
+
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: Row(
-        children: [
-          _buildSidebar(),
-          Expanded(
-            child: Column(
-              children: [
-                _buildTopBar(),
-                Expanded(
-                  child: _buildMainContent(),
+      appBar: isMobile
+          ? AppBar(
+              title: Text(_getPageTitle()),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none_rounded),
+                  onPressed: () => _showNotifications(context),
                 ),
               ],
+            )
+          : null,
+      drawer: isMobile ? Drawer(child: _buildSidebarContent()) : null,
+      body: ResponsiveLayout(
+        mobileBody: _buildMainContent(),
+        desktopBody: Row(
+          children: [
+            _buildSidebar(),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildTopBar(),
+                  Expanded(
+                    child: _buildMainContent(),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -122,6 +140,13 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
           BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(2, 0)),
         ],
       ),
+      child: _buildSidebarContent(),
+    );
+  }
+
+  Widget _buildSidebarContent() {
+    return Container(
+      color: AppTheme.primaryNavy,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -180,7 +205,12 @@ class _EmployeeHomeScreenState extends State<EmployeeHomeScreen> {
   Widget _buildNavItem(int index, String title, IconData icon) {
     final bool isSelected = _selectedIndex == index;
     return InkWell(
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () {
+        setState(() => _selectedIndex = index);
+        if (ResponsiveLayout.isMobile(context)) {
+          Navigator.pop(context); // Close drawer on mobile
+        }
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -80,179 +80,181 @@ class _LoginScreenState extends State<LoginScreen> {
           
           SafeArea(
             child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Brand Logo Area
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: AppTheme.white,
-                          shape: BoxShape.circle,
-                          boxShadow: AppTheme.softShadow,
-                        ),
-                        child: const Icon(
-                          Icons.fingerprint_rounded,
-                          size: 64,
-                          color: AppTheme.primaryNavy,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Center(
-                      child: Column(
-                        children: [
-                          Text(
-                            'SMARTOPS',
-                            style: GoogleFonts.montserrat(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w900,
-                              color: AppTheme.primaryNavy,
-                              letterSpacing: 4,
-                            ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Brand Logo Area
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppTheme.white,
+                            shape: BoxShape.circle,
+                            boxShadow: AppTheme.softShadow,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'NEXT-GEN ATTENDANCE SYSTEM',
-                            style: GoogleFonts.montserrat(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.secondarySlate,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 56),
-                    
-                    // Welcome Text
-                    Text(
-                      'Welcome Back',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please sign in to continue',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 32),
-                    
-                    // Login Form
-                    _buildLabel('Username'),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _usernameController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your username',
-                        prefixIcon: const Icon(Icons.person_outline_rounded, color: AppTheme.secondarySlate),
-                        filled: true,
-                        fillColor: AppTheme.white,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    _buildLabel('Password'),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your password',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.secondarySlate),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: AppTheme.secondarySlate,
-                          ),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                        ),
-                        filled: true,
-                        fillColor: AppTheme.white,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          'Forgot Password?',
-                          style: GoogleFonts.montserrat(
+                          child: const Icon(
+                            Icons.fingerprint_rounded,
+                            size: 64,
                             color: AppTheme.primaryNavy,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 32),
-                    
-                    // Login Button
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryNavy))
-                        : Container(
-                            decoration: BoxDecoration(
-                              boxShadow: AppTheme.buttonShadow,
-                            ),
-                            child: ElevatedButton(
-                              onPressed: _handleLogin,
-                              child: const Text('SIGN IN'),
-                            ),
-                          ),
-                    
-                    const SizedBox(height: 48),
-                    
-                    // Kiosk Access
-                    Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            height: 1,
-                            width: 50,
-                            color: AppTheme.dividerColor,
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text(
-                              'OR ACCESS VIA',
+                      const SizedBox(height: 32),
+                      Center(
+                        child: Column(
+                          children: [
+                            Text(
+                              'SMARTOPS',
                               style: GoogleFonts.montserrat(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.secondarySlate,
-                                letterSpacing: 1,
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: AppTheme.primaryNavy,
+                                letterSpacing: 4,
                               ),
                             ),
-                          ),
-                          Container(
-                            height: 1,
-                            width: 50,
-                            color: AppTheme.dividerColor,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Center(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pushNamed(context, AppRoutes.kiosk),
-                        icon: const Icon(Icons.desktop_windows_outlined, size: 20),
-                        label: const Text('KIOSK TERMINAL'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(200, 50),
-                          side: const BorderSide(color: AppTheme.dividerColor),
-                          foregroundColor: AppTheme.primaryNavy,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
-                          textStyle: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 13),
+                            const SizedBox(height: 8),
+                            Text(
+                              'NEXT-GEN ATTENDANCE SYSTEM',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.secondarySlate,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 56),
+                      
+                      // Welcome Text
+                      Text(
+                        'Welcome Back',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Please sign in to continue',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 32),
+                      
+                      // Login Form
+                      _buildLabel('Username'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _usernameController,
+                        decoration: InputDecoration(
+                          hintText: 'Enter your username',
+                          prefixIcon: const Icon(Icons.person_outline_rounded, color: AppTheme.secondarySlate),
+                          filled: true,
+                          fillColor: AppTheme.white,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      _buildLabel('Password'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          hintText: 'Enter your password',
+                          prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.secondarySlate),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.white,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {},
+                          child: Text(
+                            'Forgot Password?',
+                            style: GoogleFonts.montserrat(
+                              color: AppTheme.primaryNavy,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      
+                      // Login Button
+                      _isLoading
+                          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryNavy))
+                          : Container(
+                              decoration: BoxDecoration(
+                                boxShadow: AppTheme.buttonShadow,
+                              ),
+                              child: ElevatedButton(
+                                onPressed: _handleLogin,
+                                child: const Text('SIGN IN'),
+                              ),
+                            ),
+                      
+                      const SizedBox(height: 48),
+                      
+                      // Kiosk Access
+                      Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              height: 1,
+                              width: 50,
+                              color: AppTheme.dividerColor,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'OR ACCESS VIA',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.secondarySlate,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              height: 1,
+                              width: 50,
+                              color: AppTheme.dividerColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pushNamed(context, AppRoutes.kiosk),
+                          icon: const Icon(Icons.desktop_windows_outlined, size: 20),
+                          label: const Text('KIOSK TERMINAL'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(200, 50),
+                            side: const BorderSide(color: AppTheme.dividerColor),
+                            foregroundColor: AppTheme.primaryNavy,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                            textStyle: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

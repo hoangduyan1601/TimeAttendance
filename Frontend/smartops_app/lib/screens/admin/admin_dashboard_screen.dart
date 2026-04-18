@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/services/api_service.dart';
+import 'package:smartops_app/widgets/responsive_layout.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -437,27 +438,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isMobile = ResponsiveLayout.isMobile(context);
+
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: Row(
-        children: [
-          // Sidebar Navigation
-          _buildSidebar(),
-          
-          // Main Content Area
-          Expanded(
-            child: Column(
-              children: [
-                _buildTopBar(),
-                Expanded(
-                  child: _isLoading 
-                    ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryNavy))
-                    : _buildMainContent(),
+      appBar: isMobile
+          ? AppBar(
+              title: Text(_getPageTitle()),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none_rounded),
+                  onPressed: () => _showNotifications(context),
                 ),
               ],
+            )
+          : null,
+      drawer: isMobile ? Drawer(child: _buildSidebarContent()) : null,
+      body: ResponsiveLayout(
+        mobileBody: _isLoading 
+            ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryNavy))
+            : _buildMainContent(),
+        desktopBody: Row(
+          children: [
+            _buildSidebar(),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildTopBar(),
+                  Expanded(
+                    child: _isLoading 
+                      ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryNavy))
+                      : _buildMainContent(),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -471,10 +488,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(2, 0)),
         ],
       ),
+      child: _buildSidebarContent(),
+    );
+  }
+
+  Widget _buildSidebarContent() {
+    return Container(
+      color: AppTheme.primaryNavy,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Logo Area
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: Column(
@@ -499,14 +522,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
           ),
-          
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 24),
             child: Divider(color: Colors.white24, height: 1),
           ),
           const SizedBox(height: 24),
-          
-          // Menu Items
           _buildNavItem(0, 'Tổng quan Hệ thống', Icons.dashboard_rounded),
           _buildNavItem(1, 'Danh sách Nhân sự', Icons.people_alt_rounded),
           _buildNavItem(2, 'Quản lý Đơn từ', Icons.assignment_rounded),
@@ -514,10 +534,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _buildNavItem(6, 'Quản lý Phòng ban', Icons.business_rounded),
           _buildNavItem(4, 'Cấu hình Ca làm', Icons.schedule_rounded),
           _buildNavItem(5, 'Báo cáo & Theo dõi', Icons.analytics_rounded),
-          
           const Spacer(),
-          
-          // Logout
           Padding(
             padding: const EdgeInsets.all(24),
             child: InkWell(
@@ -980,102 +997,118 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // TAB 0: DASHBOARD OVERVIEW
   // ==========================================
   Widget _buildDashboardTab() {
+    bool isMobile = ResponsiveLayout.isMobile(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isMobile ? 16 : 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // KPI Cards
-          Row(
-            children: [
-              Expanded(child: _buildKpiCard("TỔNG NHÂN SỰ", "${_stats?['totalEmployees'] ?? 0}", Icons.people_alt_rounded, AppTheme.primaryNavy)),
-              const SizedBox(width: 24),
-              Expanded(child: _buildKpiCard("CÓ MẶT HÔM NAY", "${_stats?['presentToday'] ?? 0}", Icons.check_circle_rounded, AppTheme.success)),
-              const SizedBox(width: 24),
-              Expanded(child: _buildKpiCard("SỐ CA ĐI MUỘN", "${_stats?['lateToday'] ?? 0}", Icons.access_time_filled_rounded, AppTheme.warning)),
-              const SizedBox(width: 24),
-              Expanded(child: _buildKpiCard("SỐ CA VẮNG", "${_stats?['absentToday'] ?? 0}", Icons.cancel_rounded, AppTheme.error)),
-            ],
-          ),
+          // KPI Cards - Responsive Grid
+          LayoutBuilder(builder: (context, constraints) {
+            int crossAxisCount = constraints.maxWidth > 1200 ? 4 : (constraints.maxWidth > 600 ? 2 : 1);
+            double childAspectRatio = isMobile ? 2.5 : 2.2;
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: childAspectRatio,
+              children: [
+                _buildKpiCard("TỔNG NHÂN SỰ", "${_stats?['totalEmployees'] ?? 0}", Icons.people_alt_rounded, AppTheme.primaryNavy),
+                _buildKpiCard("CÓ MẶT HÔM NAY", "${_stats?['presentToday'] ?? 0}", Icons.check_circle_rounded, AppTheme.success),
+                _buildKpiCard("SỐ CA ĐI MUỘN", "${_stats?['lateToday'] ?? 0}", Icons.access_time_filled_rounded, AppTheme.warning),
+                _buildKpiCard("SỐ CA VẮNG", "${_stats?['absentToday'] ?? 0}", Icons.cancel_rounded, AppTheme.error),
+              ],
+            );
+          }),
           const SizedBox(height: 32),
           
+          if (isMobile)
+            Column(
+              children: [
+                _buildChartArea(),
+                const SizedBox(height: 24),
+                _buildLiveLogsArea(),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 2, child: _buildChartArea()),
+                const SizedBox(width: 24),
+                Expanded(flex: 1, child: _buildLiveLogsArea()),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChartArea() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(color: AppTheme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Xu hướng Chấm công (7 ngày)", style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 300,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (index) => _buildChartBar(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveLogsArea() {
+    return Container(
+      height: 390,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(color: AppTheme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Chart Area
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppTheme.white,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                    border: Border.all(color: AppTheme.dividerColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Xu hướng Chấm công (7 ngày)", style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 300,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: List.generate(7, (index) => _buildChartBar(index)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              
-              // Live Logs Area
-              Expanded(
-                flex: 1,
-                child: Container(
-                  height: 390,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppTheme.white,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                    border: Border.all(color: AppTheme.dividerColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Hoạt động Trực tiếp", style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: AppTheme.error.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                            child: Row(
-                              children: [
-                                Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppTheme.error, shape: BoxShape.circle)),
-                                const SizedBox(width: 4),
-                                Text("LIVE", style: GoogleFonts.montserrat(color: AppTheme.error, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: _liveLogs.isEmpty 
-                          ? const Center(child: Text("Không có dữ liệu mới"))
-                          : ListView.builder(
-                              itemCount: _liveLogs.length,
-                              itemBuilder: (context, index) => _buildMiniLogTile(_liveLogs[index]),
-                            ),
-                      ),
-                    ],
-                  ),
+              Text("Hoạt động Trực tiếp", style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 16)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppTheme.error.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                child: Row(
+                  children: [
+                    Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppTheme.error, shape: BoxShape.circle)),
+                    const SizedBox(width: 4),
+                    Text("LIVE", style: GoogleFonts.montserrat(color: AppTheme.error, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: _liveLogs.isEmpty 
+              ? const Center(child: Text("Không có dữ liệu mới"))
+              : ListView.builder(
+                  itemCount: _liveLogs.length,
+                  itemBuilder: (context, index) => _buildMiniLogTile(_liveLogs[index]),
+                ),
           ),
         ],
       ),
