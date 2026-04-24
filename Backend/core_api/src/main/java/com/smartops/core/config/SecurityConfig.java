@@ -57,6 +57,8 @@ public class SecurityConfig {
                 .requestMatchers("/health", "/h2-console/**", "/uploads/**").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/kiosk/**").permitAll()
+                .requestMatchers("/api/v1/admin/reports/export").permitAll()
+                .requestMatchers("/api/v1/admin/reports/summary/export").permitAll() // Sửa đúng URL export
                 .requestMatchers("/api/v1/employee/**").hasRole("EMPLOYEE")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN") // Chỉ ADMIN
                 .anyRequest().authenticated()

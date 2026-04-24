@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartops_app/core/constants.dart';
+// Conditional import for web
+import 'dart:html' as html if (dart.library.io) 'package:smartops_app/services/fake_html.dart';
 
 class ApiService {
   final Dio _dio = Dio();
@@ -300,9 +302,31 @@ class ApiService {
   Future<void> exportAttendanceReport(String start, String end) async {
     try {
       final token = await getToken();
-      final url = "${ApiConstants.adminExportReport}?startDate=$start&endDate=$end&access_token=$token";
-      debugPrint("Exporting report via: $url");
+      final url = "${ApiConstants.baseUrl}/admin/reports/export?startDate=$start&endDate=$end&access_token=$token&type=detail";
+      
+      if (kIsWeb) {
+        html.window.open(url, '_blank');
+      } else {
+        debugPrint("Export URL: $url");
+      }
     } catch (e) {
+      debugPrint("Export error: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> exportAttendanceSummaryReport(String start, String end) async {
+    try {
+      final token = await getToken();
+      final url = "${ApiConstants.baseUrl}/admin/reports/export?startDate=$start&endDate=$end&access_token=$token&type=summary";
+      
+      if (kIsWeb) {
+        html.window.open(url, '_blank');
+      } else {
+        debugPrint("Export URL: $url");
+      }
+    } catch (e) {
+      debugPrint("Export error: $e");
       rethrow;
     }
   }
@@ -340,20 +364,6 @@ class ApiService {
       final options = await _getOptions();
       final response = await _dio.delete(
         "${ApiConstants.adminUsers}/$id",
-        options: options,
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<Map<String, dynamic>> assignShiftToUser(int userId, int shiftId) async {
-    try {
-      final options = await _getOptions();
-      final response = await _dio.put(
-        "${ApiConstants.baseUrl}/admin/users/$userId/assign-shift",
-        queryParameters: {'shiftId': shiftId},
         options: options,
       );
       return response.data;

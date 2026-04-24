@@ -11,11 +11,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+    defer-datasource-initialization: true # Chạy data.sql SAU khi tạo bảng
     show-sql: true
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: always # Luôn chạy script khởi tạo
   jackson:
     time-zone: Asia/Ho_Chi_Minh
   servlet:

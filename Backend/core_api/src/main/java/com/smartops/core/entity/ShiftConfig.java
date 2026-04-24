@@ -22,7 +22,7 @@ public class ShiftConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "shift_name", nullable = false)
+    @Column(name = "shift_name", nullable = false, unique = true)
     private String shiftName; // VD: Sáng, Chiều, Hành chính
 
     @Column(name = "start_time", nullable = false)

@@ -64,21 +64,38 @@ public class AdminController {
     @GetMapping("/reports/export")
     public ResponseEntity<InputStreamResource> exportReport(
             @RequestParam("startDate") String startDate,
-            @RequestParam("endDate") String endDate) {
+            @RequestParam("endDate") String endDate,
+            @RequestParam(value = "type", defaultValue = "detail") String type) {
 
         LocalDate start = LocalDate.parse(startDate);
         LocalDate end = LocalDate.parse(endDate);
         
-        ByteArrayInputStream in = reportService.exportAttendanceToExcel(start, end);
+        ByteArrayInputStream in;
+        String fileName;
+        
+        if ("summary".equalsIgnoreCase(type)) {
+            in = reportService.exportAttendanceSummaryToExcel(start, end);
+            fileName = "attendance_summary_" + startDate + "_to_" + endDate + ".xlsx";
+        } else {
+            in = reportService.exportAttendanceToExcel(start, end);
+            fileName = "attendance_detail_" + startDate + "_to_" + endDate + ".xlsx";
+        }
         
         HttpHeaders headers = new HttpHeaders();
-        headers.add("Content-Disposition", "attachment; filename=attendance_report_" + startDate + "_to_" + endDate + ".xlsx");
+        headers.add("Content-Disposition", "attachment; filename=" + fileName);
 
         return ResponseEntity
                 .ok()
                 .headers(headers)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(new InputStreamResource(in));
+    }
+
+    @GetMapping("/reports/summary/export")
+    public ResponseEntity<InputStreamResource> exportSummaryReport(
+            @RequestParam("startDate") String startDate,
+            @RequestParam("endDate") String endDate) {
+        return exportReport(startDate, endDate, "summary");
     }
 
     @GetMapping("/dashboard/stats")

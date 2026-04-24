@@ -26,6 +26,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<dynamic> _allShifts = [];
   List<dynamic> _attendanceReports = [];
   String _reportFilter = 'TODAY'; // TODAY, WEEK, MONTH
+  bool _showSummary = false;
   bool _isLoading = true;
 
   @override
@@ -885,6 +886,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         color: AppTheme.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: Border.all(color: AppTheme.dividerColor),
+        boxShadow: AppTheme.softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -893,8 +895,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             padding: const EdgeInsets.all(24),
             child: Row(
               children: [
-                Text("Báo cáo & Theo dõi Chấm công", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Báo cáo & Theo dõi Chấm công", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primaryNavy)),
+                    Text(_showSummary ? "Bảng tổng hợp công toàn công ty" : "Nhật ký chấm công chi tiết", 
+                      style: GoogleFonts.montserrat(fontSize: 12, color: AppTheme.secondarySlate)),
+                  ],
+                ),
                 const Spacer(),
+                _buildToggleButton(),
+                const SizedBox(width: 24),
                 _buildFilterChip("Hôm nay", "TODAY"),
                 const SizedBox(width: 8),
                 _buildFilterChip("7 ngày qua", "WEEK"),
@@ -906,18 +917,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     String start = DateFormat('yyyy-MM-dd').format(DateTime.now());
                     if (_reportFilter == 'WEEK') start = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 7)));
                     if (_reportFilter == 'MONTH') start = DateFormat('yyyy-MM-dd').format(DateTime(DateTime.now().year, DateTime.now().month, 1));
-                    _apiService.exportAttendanceReport(start, DateFormat('yyyy-MM-dd').format(DateTime.now()));
+                    
+                    if (_showSummary) {
+                      _apiService.exportAttendanceSummaryReport(start, DateFormat('yyyy-MM-dd').format(DateTime.now()));
+                    } else {
+                      _apiService.exportAttendanceReport(start, DateFormat('yyyy-MM-dd').format(DateTime.now()));
+                    }
                   },
                   icon: const Icon(Icons.file_download_outlined, size: 18),
-                  label: const Text("Xuất Excel"),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, minimumSize: const Size(120, 40)),
+                  label: Text(_showSummary ? "Xuất Bảng Công" : "Xuất Excel"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.success, 
+                    minimumSize: const Size(140, 44),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd))
+                  ),
                 )
               ],
             ),
           ),
           const Divider(height: 1),
           Expanded(
-            child: _attendanceReports.isEmpty
+            child: _attendanceReports.isEmpty && !_showSummary
               ? Center(child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -926,53 +946,301 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Text("Không có dữ liệu trong khoảng thời gian này", style: GoogleFonts.montserrat(color: AppTheme.secondarySlate)),
                   ],
                 ))
-              : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SingleChildScrollView(
-                    child: DataTable(
-                      headingTextStyle: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: AppTheme.secondarySlate, fontSize: 12),
-                      dataTextStyle: GoogleFonts.montserrat(fontSize: 13, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
-                      columnSpacing: 40,
-                      horizontalMargin: 24,
-                      columns: const [
-                        DataColumn(label: Text("NHÂN VIÊN")),
-                        DataColumn(label: Text("MÃ NV")),
-                        DataColumn(label: Text("NGÀY")),
-                        DataColumn(label: Text("GIỜ VÀO")),
-                        DataColumn(label: Text("GIỜ RA")),
-                        DataColumn(label: Text("CA LÀM")),
-                        DataColumn(label: Text("TRẠNG THÁI")),
-                      ],
-                      rows: _attendanceReports.map((report) {
-                        final checkIn = report['checkInTime'] != null ? DateTime.parse(report['checkInTime']) : null;
-                        final checkOut = report['checkOutTime'] != null ? DateTime.parse(report['checkOutTime']) : null;
-                        final status = report['status'] ?? 'N/A';
-                        final bool isSuccess = status == 'ON_TIME' || status == 'SUCCESS';
-
-                        return DataRow(cells: [
-                          DataCell(Text(report['fullName'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold))),
-                          DataCell(Text(report['employeeCode'] ?? 'N/A')),
-                          DataCell(Text(checkIn != null ? DateFormat('dd/MM/yyyy').format(checkIn) : 'N/A')),
-                          DataCell(Text(checkIn != null ? DateFormat('HH:mm:ss').format(checkIn) : '--:--')),
-                          DataCell(Text(checkOut != null ? DateFormat('HH:mm:ss').format(checkOut) : '--:--')),
-                          DataCell(Text(report['shiftName'] ?? 'N/A')),
-                          DataCell(Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isSuccess ? AppTheme.success.withOpacity(0.1) : AppTheme.error.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4)
-                            ),
-                            child: Text(isSuccess ? "ĐÚNG GIỜ" : "ĐI MUỘN", 
-                              style: TextStyle(color: isSuccess ? AppTheme.success : AppTheme.error, fontSize: 10, fontWeight: FontWeight.bold)),
-                          )),
-                        ]);
-                      }).toList(),
-                    ),
-                  ),
-                ),
+              : _showSummary ? _buildAttendanceSummaryTable() : _buildAttendanceLogsTable(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildToggleButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: AppTheme.dividerColor),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleItem(false, "Nhật ký", Icons.list_alt_rounded),
+          _buildToggleItem(true, "Tổng hợp", Icons.summarize_rounded),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleItem(bool value, String label, IconData icon) {
+    bool isSelected = _showSummary == value;
+    return InkWell(
+      onTap: () => setState(() => _showSummary = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          boxShadow: isSelected ? AppTheme.softShadow : null,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: isSelected ? AppTheme.primaryNavy : AppTheme.secondarySlate),
+            const SizedBox(width: 8),
+            Text(label, style: GoogleFonts.montserrat(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? AppTheme.primaryNavy : AppTheme.secondarySlate,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceLogsTable() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SingleChildScrollView(
+        child: DataTable(
+          headingTextStyle: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: AppTheme.secondarySlate, fontSize: 12),
+          dataTextStyle: GoogleFonts.montserrat(fontSize: 13, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
+          columnSpacing: 40,
+          horizontalMargin: 24,
+          columns: const [
+            DataColumn(label: Text("NHÂN VIÊN")),
+            DataColumn(label: Text("MÃ NV")),
+            DataColumn(label: Text("NGÀY")),
+            DataColumn(label: Text("GIỜ VÀO")),
+            DataColumn(label: Text("GIỜ RA")),
+            DataColumn(label: Text("CA LÀM")),
+            DataColumn(label: Text("TRẠNG THÁI")),
+          ],
+          rows: _attendanceReports.map((report) {
+            final checkIn = report['checkInTime'] != null ? DateTime.parse(report['checkInTime']) : null;
+            final checkOut = report['checkOutTime'] != null ? DateTime.parse(report['checkOutTime']) : null;
+            final status = report['status'] ?? 'N/A';
+            final bool isSuccess = status == 'ON_TIME' || status == 'SUCCESS';
+
+            return DataRow(cells: [
+              DataCell(Text(report['fullName'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold))),
+              DataCell(Text(report['employeeCode'] ?? 'N/A')),
+              DataCell(Text(checkIn != null ? DateFormat('dd/MM/yyyy').format(checkIn) : 'N/A')),
+              DataCell(Text(checkIn != null ? DateFormat('HH:mm:ss').format(checkIn) : '--:--')),
+              DataCell(Text(checkOut != null ? DateFormat('HH:mm:ss').format(checkOut) : '--:--')),
+              DataCell(Text(report['shiftName'] ?? 'N/A')),
+              DataCell(Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isSuccess ? AppTheme.success.withOpacity(0.1) : AppTheme.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4)
+                ),
+                child: Text(isSuccess ? "ĐÚNG GIỜ" : "ĐI MUỘN", 
+                  style: TextStyle(color: isSuccess ? AppTheme.success : AppTheme.error, fontSize: 10, fontWeight: FontWeight.bold)),
+              )),
+            ]);
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceSummaryTable() {
+    // 1. Prepare Data
+    final Map<String, Map<String, dynamic>> summaryData = {};
+    final now = DateTime.now();
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+
+    for (var user in _allUsers) {
+      final String code = user['employeeCode'] ?? 'N/A';
+      summaryData[code] = {
+        'fullName': user['fullName'] ?? 'N/A',
+        'employeeCode': code,
+        'department': user['departmentName'] ?? 'N/A',
+        'present': 0,
+        'late': 0,
+        'excused': 0,
+        'unexcused': 0,
+        'totalHours': 0.0,
+        'incomplete': 0, // Records with missing check-out
+      };
+    }
+
+    for (var report in _attendanceReports) {
+      final code = report['employeeCode'];
+      if (code != null && summaryData.containsKey(code)) {
+        summaryData[code]!['present'] += 1;
+        if (report['status'] == 'LATE') summaryData[code]!['late'] += 1;
+        
+        if (report['checkInTime'] != null) {
+          final checkIn = DateTime.parse(report['checkInTime']);
+          if (report['checkOutTime'] != null) {
+            final checkOut = DateTime.parse(report['checkOutTime']);
+            summaryData[code]!['totalHours'] += checkOut.difference(checkIn).inMinutes / 60.0;
+          } else {
+            // Missing check-out
+            final checkInDateStr = DateFormat('yyyy-MM-dd').format(checkIn);
+            if (checkInDateStr == todayStr) {
+              // If today, calculate temporary hours until now (ensure no negative values)
+              final double diff = now.difference(checkIn).inMinutes / 60.0;
+              summaryData[code]!['totalHours'] += diff > 0 ? diff : 0.0;
+            } else {
+              // If past days, mark as incomplete
+              summaryData[code]!['incomplete'] += 1;
+            }
+          }
+        }
+      }
+    }
+
+    for (var leave in _allLeaves) {
+      if (leave['status'] == 'APPROVED') {
+        final code = leave['employeeCode'];
+        if (code != null && summaryData.containsKey(code)) {
+          summaryData[code]!['excused'] += 1;
+        }
+      }
+    }
+
+    int workingDays = 22;
+    if (_reportFilter == 'TODAY') workingDays = 1;
+    else if (_reportFilter == 'WEEK') workingDays = 7;
+    else if (_reportFilter == 'MONTH') workingDays = now.day;
+
+    final dataList = summaryData.values.toList();
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: 1050, // Slightly wider for warning icons
+        child: Column(
+          children: [
+            // Table Header
+            Container(
+              color: AppTheme.background,
+              child: Table(
+                border: TableBorder.all(color: AppTheme.dividerColor, width: 1),
+                columnWidths: const {
+                  0: FixedColumnWidth(50),
+                  1: FixedColumnWidth(90),
+                  2: FlexColumnWidth(2),
+                  3: FlexColumnWidth(1.5),
+                  4: FixedColumnWidth(70),
+                  5: FixedColumnWidth(70),
+                  6: FixedColumnWidth(70),
+                  7: FixedColumnWidth(70),
+                  8: FixedColumnWidth(110),
+                },
+                children: [
+                  TableRow(
+                    children: [
+                      _headerCell("STT"),
+                      _headerCell("MÃ NV"),
+                      _headerCell("HỌ VÀ TÊN"),
+                      _headerCell("PHÒNG BAN"),
+                      _headerCell("CÔNG"),
+                      _headerCell("MUỘN"),
+                      _headerCell("PHÉP"),
+                      _headerCell("VẮNG"),
+                      _headerCell("TỔNG GIỜ"),
+                    ]
+                  ),
+                ],
+              ),
+            ),
+            // Table Body
+            Expanded(
+              child: ListView.builder(
+                itemCount: dataList.length,
+                itemBuilder: (context, idx) {
+                  final data = dataList[idx];
+                  int present = data['present'];
+                  int excused = data['excused'];
+                  int incomplete = data['incomplete'];
+                  int unexcused = workingDays - present - excused;
+                  if (unexcused < 0) unexcused = 0;
+
+                  return Table(
+                    border: TableBorder(
+                      bottom: BorderSide(color: AppTheme.dividerColor),
+                      left: BorderSide(color: AppTheme.dividerColor),
+                      right: BorderSide(color: AppTheme.dividerColor),
+                      verticalInside: BorderSide(color: AppTheme.dividerColor),
+                    ),
+                    columnWidths: const {
+                      0: FixedColumnWidth(50),
+                      1: FixedColumnWidth(90),
+                      2: FlexColumnWidth(2),
+                      3: FlexColumnWidth(1.5),
+                      4: FixedColumnWidth(70),
+                      5: FixedColumnWidth(70),
+                      6: FixedColumnWidth(70),
+                      7: FixedColumnWidth(70),
+                      8: FixedColumnWidth(110),
+                    },
+                    children: [
+                      TableRow(
+                        children: [
+                          _dataCell("${idx + 1}"),
+                          _dataCell(data['employeeCode'], bold: true),
+                          _dataCell(data['fullName'], align: TextAlign.left),
+                          _dataCell(data['department'], align: TextAlign.left),
+                          _dataCell("$present", color: AppTheme.success, bold: true),
+                          _dataCell("${data['late']}", color: data['late'] > 0 ? AppTheme.error : null),
+                          _dataCell("$excused", color: AppTheme.info),
+                          _dataCell("$unexcused", color: unexcused > 0 ? AppTheme.warning : null),
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text("${data['totalHours'].toStringAsFixed(1)}h", 
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 13, 
+                                    fontWeight: FontWeight.bold,
+                                    color: incomplete > 0 ? AppTheme.error : AppTheme.primaryNavy
+                                  )),
+                                if (incomplete > 0) ...[
+                                  const SizedBox(width: 4),
+                                  Tooltip(
+                                    message: "Thiếu $incomplete lần chấm công ra",
+                                    child: const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 14),
+                                  ),
+                                ]
+                              ],
+                            ),
+                          ),
+                        ]
+                      )
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _headerCell(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      alignment: Alignment.center,
+      child: Text(text, textAlign: TextAlign.center, style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.secondarySlate)),
+    );
+  }
+
+  Widget _dataCell(String text, {bool bold = false, TextAlign align = TextAlign.center, Color? color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      alignment: align == TextAlign.center ? Alignment.center : Alignment.centerLeft,
+      child: Text(text, style: GoogleFonts.montserrat(
+        fontSize: 13, 
+        fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+        color: color ?? AppTheme.textPrimary
+      )),
     );
   }
 
