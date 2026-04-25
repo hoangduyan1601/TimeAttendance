@@ -29,6 +29,21 @@ public class AdminController {
     private final AdminService adminService;
     private final DashboardService dashboardService;
     private final ReportService reportService;
+    private final com.smartops.core.repository.NotificationRepository notificationRepository;
+
+    @GetMapping("/notifications")
+    public ResponseEntity<ApiResponse<java.util.List<com.smartops.core.entity.Notification>>> getNotifications() {
+        return ResponseEntity.ok(ApiResponse.success(notificationRepository.findAllByOrderByCreatedAtDesc(), "Lấy danh sách thông báo thành công"));
+    }
+
+    @PutMapping("/notifications/{id}/read")
+    public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable Long id) {
+        notificationRepository.findById(id).ifPresent(n -> {
+            n.setIsRead(true);
+            notificationRepository.save(n);
+        });
+        return ResponseEntity.ok(ApiResponse.success(null, "Đã đánh dấu đã đọc"));
+    }
 
     @GetMapping("/ekyc/pending")
     public ResponseEntity<ApiResponse<java.util.List<com.smartops.core.dto.UserResponseDTO>>> getPendingEkyc() {

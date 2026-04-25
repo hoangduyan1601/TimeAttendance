@@ -109,3 +109,20 @@ INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, s
 -- 8. SHIFT CHANGE REQUESTS (If table exists)
 -- Assuming the table exists based on the directory listing
 -- INSERT INTO shift_change_requests ... (Skipping for now as structure wasn't fully checked, but similar to above)
+
+-- ========================================================
+-- DỮ LIỆU MẪU CHO TÍNH NĂNG OT VÀ THÔNG BÁO (MỚI THÊM)
+-- ========================================================
+
+-- 1. Thêm đơn OT mẫu (Cho Nam.lh ID=3 và Duc.pm ID=4)
+INSERT INTO overtime_requests (user_id, date, start_time, end_time, reason, status, created_at, updated_at)
+VALUES 
+(3, CURRENT_DATE, '17:30:00', '20:00:00', 'Hoàn thành báo cáo quý cho bộ phận kinh doanh', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(4, CURRENT_DATE, '18:00:00', '21:00:00', 'Hỗ trợ triển khai server mới tại chi nhánh', 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(3, CURRENT_DATE - 1, '17:30:00', '19:00:00', 'Dọn dẹp kho dữ liệu cũ', 'REJECTED', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP - INTERVAL '1 day');
+
+-- 2. Thêm thông báo mẫu dành cho Admin
+INSERT INTO notifications (title, message, type, is_read, created_at)
+VALUES 
+('Cảnh báo quá giờ: NV003', 'Nhân viên Lê Hoàng Nam (NV003) đã quá giờ tan ca (> 1 tiếng) nhưng chưa check-out. Ca kết thúc: 17:30:00', 'ALERT', false, CURRENT_TIMESTAMP),
+('Thông báo hệ thống', 'Phiên bản SmartOps 2.0 đã được cập nhật thành công.', 'INFO', true, CURRENT_TIMESTAMP - INTERVAL '2 hours');

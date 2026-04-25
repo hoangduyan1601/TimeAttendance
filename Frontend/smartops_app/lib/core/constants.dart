@@ -18,4 +18,7 @@ class ApiConstants {
   static const String adminExportReport = '$baseUrl/admin/reports/export';
   static const String adminUsers = '$baseUrl/admin/users';
   static const String resolveQr = '$baseUrl/kiosk/resolve-qr';
+  static const String overtime = '$baseUrl/employee/overtime';
+  static const String adminOvertime = '$baseUrl/admin/overtime';
+  static String adminReviewOvertime(int otId) => '$baseUrl/admin/overtime/$otId/review';
 }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:smartops_app/core/routes.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/services/api_service.dart';
 import 'package:smartops_app/widgets/responsive_layout.dart';
+import 'attendance_analytics.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -22,10 +24,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<dynamic> _allUsers = [];
   List<dynamic> _allLeaves = [];
   List<dynamic> _allShiftChangeRequests = [];
+  List<dynamic> _allOvertimeRequests = [];
   List<dynamic> _departments = [];
   List<dynamic> _allShifts = [];
   List<dynamic> _attendanceReports = [];
-  String _reportFilter = 'TODAY'; // TODAY, WEEK, MONTH
+  String _reportFilter = 'MONTH'; // TODAY, WEEK, MONTH
+  int _selectedMonth = DateTime.now().month;
+  int _selectedYear = DateTime.now().year;
   bool _showSummary = false;
   bool _isLoading = true;
 
@@ -38,12 +43,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      String start = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      String end = start;
-      if (_reportFilter == 'WEEK') {
+      String start;
+      String end;
+
+      if (_reportFilter == 'MONTH') {
+        DateTime firstDay = DateTime(_selectedYear, _selectedMonth, 1);
+        DateTime lastDay = DateTime(_selectedYear, _selectedMonth + 1, 0);
+        start = DateFormat('yyyy-MM-dd').format(firstDay);
+        end = DateFormat('yyyy-MM-dd').format(lastDay);
+      } else if (_reportFilter == 'WEEK') {
         start = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 7)));
-      } else if (_reportFilter == 'MONTH') {
-        start = DateFormat('yyyy-MM-dd').format(DateTime(DateTime.now().year, DateTime.now().month, 1));
+        end = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      } else {
+        start = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        end = start;
       }
 
       final results = await Future.wait([
@@ -56,6 +69,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _apiService.getAttendanceReports(start, end),
         _apiService.getAllShifts(),
         _apiService.getAllShiftChangeRequests(),
+        _apiService.getAllOvertimeRequests(),
       ]);
 
       if (mounted) {
@@ -69,6 +83,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _attendanceReports = results[6]['data'] ?? [];
           _allShifts = results[7]['data'] ?? [];
           _allShiftChangeRequests = results[8]['data'] ?? [];
+          _allOvertimeRequests = results[9]['data'] ?? [];
           _isLoading = false;
         });
       }
@@ -653,26 +668,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _showNotifications(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
-        title: Text('Thông báo mới', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildNotificationItem('Có 3 đơn xin nghỉ mới cần phê duyệt', '10 phút trước'),
-            const Divider(),
-            _buildNotificationItem('Yêu cầu định danh eKYC từ NV005', '1 giờ trước'),
-            const Divider(),
-            _buildNotificationItem('Hệ thống AI vừa nhận diện 1 trường hợp đi muộn', '2 giờ trước'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng')),
-        ],
-      ),
-    );
+    Navigator.pushNamed(context, AppRoutes.adminNotifications).then((_) => setState(() {}));
   }
 
   Widget _buildNotificationItem(String title, String time) {
@@ -906,11 +902,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const Spacer(),
                 _buildToggleButton(),
                 const SizedBox(width: 24),
-                _buildFilterChip("Hôm nay", "TODAY"),
+                // Month Selector
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.background,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    border: Border.all(color: AppTheme.dividerColor),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _selectedMonth,
+                      items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(
+                        value: m, 
+                        child: Text("Tháng $m", style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600))
+                      )).toList(),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedMonth = v!;
+                          _reportFilter = 'MONTH';
+                        });
+                        _fetchData();
+                      },
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 8),
-                _buildFilterChip("7 ngày qua", "WEEK"),
-                const SizedBox(width: 8),
-                _buildFilterChip("Tháng này", "MONTH"),
+                // Year Selector
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.background,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    border: Border.all(color: AppTheme.dividerColor),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _selectedYear,
+                      items: [2024, 2025, 2026].map((y) => DropdownMenuItem(
+                        value: y, 
+                        child: Text("$y", style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600))
+                      )).toList(),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedYear = v!;
+                          _reportFilter = 'MONTH';
+                        });
+                        _fetchData();
+                      },
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 24),
                 ElevatedButton.icon(
                   onPressed: () {
@@ -1221,6 +1263,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAnalyticsDashboard() {
+    return AttendanceAnalytics(
+      reports: _attendanceReports,
+      users: _allUsers,
+      leaves: _allLeaves,
+      selectedMonth: _selectedMonth,
+      selectedYear: _selectedYear,
     );
   }
 
@@ -1568,7 +1620,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         border: Border.all(color: AppTheme.dividerColor),
       ),
       child: DefaultTabController(
-        length: 2,
+        length: 3,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1587,6 +1639,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       tabs: const [
                         Tab(text: "Đơn xin nghỉ phép"),
                         Tab(text: "Yêu cầu đổi ca làm"),
+                        Tab(text: "Yêu cầu làm thêm (OT)"),
                       ],
                     ),
                   ),
@@ -1599,6 +1652,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   _buildLeaveRequestsTable(),
                   _buildShiftChangeRequestsTable(),
+                  _buildOvertimeRequestsTable(),
                 ],
               ),
             ),
@@ -1606,6 +1660,91 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildOvertimeRequestsTable() {
+    // Lọc danh sách OT từ dữ liệu đã fetch (giả sử _allOvertimeRequests đã được load)
+    return _allOvertimeRequests.isEmpty 
+      ? const Center(child: Text("Không có yêu cầu OT nào"))
+      : SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            child: DataTable(
+              headingTextStyle: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: AppTheme.secondarySlate, fontSize: 12),
+              dataTextStyle: GoogleFonts.montserrat(fontSize: 13, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
+              columnSpacing: 32,
+              horizontalMargin: 24,
+              columns: const [
+                DataColumn(label: Text("NHÂN VIÊN")),
+                DataColumn(label: Text("NGÀY")),
+                DataColumn(label: Text("THỜI GIAN")),
+                DataColumn(label: Text("LÝ DO")),
+                DataColumn(label: Text("TRẠNG THÁI")),
+                DataColumn(label: Text("HÀNH ĐỘNG")),
+              ],
+              rows: _allOvertimeRequests.map((ot) {
+                bool isPending = ot['status'] == 'PENDING';
+                final int otId = ot['id'];
+                return DataRow(cells: [
+                  DataCell(Text(ot['fullName'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(Text(ot['date'] ?? 'N/A')),
+                  DataCell(Text("${ot['startTime']} - ${ot['endTime']}")),
+                  DataCell(SizedBox(width: 150, child: Text(ot['reason'] ?? '...', overflow: TextOverflow.ellipsis))),
+                  DataCell(_buildStatusBadge(ot['status'])),
+                  DataCell(isPending ? Row(
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => _handleOvertimeReview(otId, 'REJECTED'), 
+                        style: OutlinedButton.styleFrom(foregroundColor: AppTheme.error, side: const BorderSide(color: AppTheme.error), minimumSize: const Size(60, 30)),
+                        child: const Text("TỪ CHỐI", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => _handleOvertimeReview(otId, 'APPROVED'), 
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, minimumSize: const Size(60, 30)),
+                        child: const Text("DUYỆT", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ) : const Text("Đã xử lý", style: TextStyle(color: AppTheme.secondarySlate, fontStyle: FontStyle.italic))),
+                ]);
+              }).toList(),
+            ),
+          ),
+        );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color color = AppTheme.warning;
+    if (status == 'APPROVED') color = AppTheme.success;
+    if (status == 'REJECTED') color = AppTheme.error;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4)
+      ),
+      child: Text(status, 
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  void _handleOvertimeReview(int otId, String status) async {
+    try {
+      await _apiService.reviewOvertime(otId, status);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(status == 'APPROVED' ? 'Đã duyệt yêu cầu OT' : 'Đã từ chối yêu cầu OT'), backgroundColor: AppTheme.success),
+        );
+        _fetchData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppTheme.error),
+        );
+      }
+    }
   }
 
   Widget _buildLeaveRequestsTable() {

@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:smartops_app/core/routes.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/screens/admin/admin_dashboard_screen.dart';
+import 'package:smartops_app/screens/admin/admin_notification_screen.dart';
+import 'package:smartops_app/screens/admin/admin_overtime_review_screen.dart';
 import 'package:smartops_app/screens/auth/login_screen.dart';
 import 'package:smartops_app/screens/employee/ekyc_screen.dart';
 import 'package:smartops_app/screens/employee/history_screen.dart';
 import 'package:smartops_app/screens/employee/home_screen.dart';
+import 'package:smartops_app/screens/employee/overtime_request_screen.dart';
 import 'package:smartops_app/screens/employee/schedule_screen.dart';
 import 'package:smartops_app/screens/kiosk/kiosk_screen.dart';
 
@@ -29,7 +32,10 @@ class SmartOpsApp extends StatelessWidget {
         AppRoutes.employeeEkyc: (context) => const EkycScreen(),
         AppRoutes.employeeHistory: (context) => const HistoryScreen(),
         AppRoutes.employeeSchedule: (context) => const ScheduleScreen(),
+        AppRoutes.employeeOvertime: (context) => const OvertimeRequestScreen(),
         AppRoutes.adminDashboard: (context) => const AdminDashboardScreen(),
+        AppRoutes.adminOvertime: (context) => const AdminOvertimeReviewScreen(),
+        AppRoutes.adminNotifications: (context) => const AdminNotificationScreen(),
         AppRoutes.kiosk: (context) => const KioskScreen(),
       },
     );

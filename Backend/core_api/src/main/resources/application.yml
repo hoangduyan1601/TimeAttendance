@@ -19,17 +19,33 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   sql:
     init:
-      mode: always # Luôn chạy script khởi tạo
+      mode: always
+      encoding: UTF-8
+ # Luôn chạy script khởi tạo
   jackson:
     time-zone: Asia/Ho_Chi_Minh
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: 20223457@eaut.edu.vn # Email dùng để gửi đi
+    password: "@Aq16012004" # Mật khẩu ứng dụng Gmail
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
   expiration: 86400000 # 24 hours in milliseconds
+
+admin:
+  email: hoangduyankt@gmail.com # Email nhận thông báo
 
 upload:
   path: uploads/ekyc

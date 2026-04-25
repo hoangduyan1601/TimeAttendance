@@ -7,6 +7,8 @@ import com.smartops.core.dto.LeaveReviewDTO;
 
 import com.smartops.core.dto.EkycReviewDTO;
 
+import com.smartops.core.dto.OvertimeRequestDTO;
+
 import java.time.LocalDate;
 import java.util.List;
 import com.smartops.core.dto.UserResponseDTO;
@@ -21,4 +23,7 @@ public interface AdminService {
     void assignShiftToUser(Long userId, Long shiftId);
     List<com.smartops.core.dto.ShiftMonitoringDTO> getDailyShiftMonitoring(LocalDate date);
     List<com.smartops.core.dto.ShiftMonitoringDTO> getWeeklyShiftMonitoring(LocalDate startDate);
+    
+    List<OvertimeRequestDTO> getAllOvertimeRequests();
+    OvertimeRequestDTO reviewOvertime(Long otId, String status);
 }

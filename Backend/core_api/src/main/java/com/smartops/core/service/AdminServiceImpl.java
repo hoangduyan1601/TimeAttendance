@@ -4,14 +4,8 @@ import com.smartops.core.dto.AttendanceAdjustDTO;
 import com.smartops.core.dto.AttendanceResponseDTO;
 import com.smartops.core.dto.LeaveResponseDTO;
 import com.smartops.core.dto.LeaveReviewDTO;
-import com.smartops.core.entity.AttendanceLog;
-import com.smartops.core.entity.LeaveRequest;
-import com.smartops.core.entity.ShiftConfig;
-import com.smartops.core.entity.User;
-import com.smartops.core.repository.AttendanceLogRepository;
-import com.smartops.core.repository.LeaveRequestRepository;
-import com.smartops.core.repository.ShiftConfigRepository;
-import com.smartops.core.repository.UserRepository;
+import com.smartops.core.entity.*;
+import com.smartops.core.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +15,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 import com.smartops.core.dto.EkycReviewDTO;
+import com.smartops.core.dto.OvertimeRequestDTO;
 
 import com.smartops.core.dto.UserResponseDTO;
 import java.util.stream.Collectors;
@@ -33,6 +28,36 @@ public class AdminServiceImpl implements AdminService {
     private final AttendanceLogRepository attendanceLogRepository;
     private final UserRepository userRepository;
     private final ShiftConfigRepository shiftConfigRepository;
+    private final OvertimeRequestRepository overtimeRequestRepository;
+
+    @Override
+    public List<OvertimeRequestDTO> getAllOvertimeRequests() {
+        return overtimeRequestRepository.findAll().stream()
+                .map(ot -> OvertimeRequestDTO.builder()
+                        .id(ot.getId())
+                        .userId(ot.getUser().getId())
+                        .fullName(ot.getUser().getFullName())
+                        .date(ot.getDate())
+                        .startTime(ot.getStartTime())
+                        .endTime(ot.getEndTime())
+                        .reason(ot.getReason())
+                        .status(ot.getStatus())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public OvertimeRequestDTO reviewOvertime(Long otId, String status) {
+        OvertimeRequest ot = overtimeRequestRepository.findById(otId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu OT"));
+        ot.setStatus(status);
+        OvertimeRequest saved = overtimeRequestRepository.save(ot);
+        return OvertimeRequestDTO.builder()
+                .id(saved.getId())
+                .status(saved.getStatus())
+                .build();
+    }
 
     @Override
     public List<AttendanceResponseDTO> getAttendanceReports(LocalDate startDate, LocalDate endDate) {

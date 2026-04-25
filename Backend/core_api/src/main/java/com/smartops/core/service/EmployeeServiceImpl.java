@@ -21,6 +21,54 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final ShiftChangeRequestRepository shiftChangeRequestRepository;
     private final ShiftConfigRepository shiftConfigRepository;
     private final UserRepository userRepository;
+    private final OvertimeRequestRepository overtimeRequestRepository;
+
+    @Override
+    public OvertimeRequestDTO submitOvertimeRequest(OvertimeRequestDTO dto) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+
+        OvertimeRequest request = OvertimeRequest.builder()
+                .user(user)
+                .date(dto.getDate())
+                .startTime(dto.getStartTime())
+                .endTime(dto.getEndTime())
+                .reason(dto.getReason())
+                .status("PENDING")
+                .build();
+
+        OvertimeRequest saved = overtimeRequestRepository.save(request);
+        return OvertimeRequestDTO.builder()
+                .id(saved.getId())
+                .userId(saved.getUser().getId())
+                .fullName(saved.getUser().getFullName())
+                .date(saved.getDate())
+                .startTime(saved.getStartTime())
+                .endTime(saved.getEndTime())
+                .reason(saved.getReason())
+                .status(saved.getStatus())
+                .build();
+    }
+
+    @Override
+    public List<OvertimeRequestDTO> getMyOvertimeRequests() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        // Giả sử có phương thức findByUserId trong repository, nếu chưa có ta sẽ dùng findAll và filter
+        return overtimeRequestRepository.findAll().stream()
+                .filter(ot -> ot.getUser().getId().equals(userId))
+                .map(ot -> OvertimeRequestDTO.builder()
+                        .id(ot.getId())
+                        .userId(ot.getUser().getId())
+                        .fullName(ot.getUser().getFullName())
+                        .date(ot.getDate())
+                        .startTime(ot.getStartTime())
+                        .endTime(ot.getEndTime())
+                        .reason(ot.getReason())
+                        .status(ot.getStatus())
+                        .build())
+                .collect(Collectors.toList());
+    }
 
     @Override
     public List<AttendanceHistoryDTO> getMyAttendanceHistory(String startDate, String endDate) {

@@ -30,4 +30,6 @@ public interface AttendanceLogRepository extends JpaRepository<AttendanceLog, Lo
     List<AttendanceLog> findByCheckInTimeBetweenOrderByCheckInTimeAsc(LocalDateTime start, LocalDateTime end);
 
     List<AttendanceLog> findTop10ByOrderByCheckInTimeDesc();
+
+    List<AttendanceLog> findByCheckOutTimeIsNull();
 }

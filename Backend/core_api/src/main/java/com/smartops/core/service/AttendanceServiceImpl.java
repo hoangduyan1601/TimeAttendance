@@ -1,14 +1,8 @@
 package com.smartops.core.service;
 
 import com.smartops.core.dto.*;
-import com.smartops.core.entity.AttendanceLog;
-import com.smartops.core.entity.FaceData;
-import com.smartops.core.entity.ShiftConfig;
-import com.smartops.core.entity.User;
-import com.smartops.core.repository.AttendanceLogRepository;
-import com.smartops.core.repository.FaceDataRepository;
-import com.smartops.core.repository.ShiftConfigRepository;
-import com.smartops.core.repository.UserRepository;
+import com.smartops.core.entity.*;
+import com.smartops.core.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,6 +25,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final ShiftConfigRepository shiftConfigRepository;
     private final ShiftConfigService shiftConfigService;
     private final FaceDataRepository faceDataRepository;
+    private final OvertimeRequestRepository overtimeRequestRepository;
     private final WebClient webClient;
 
     @Value("${ai-service.url}")
@@ -118,9 +113,43 @@ public class AttendanceServiceImpl implements AttendanceService {
             // Đã có bản ghi -> Cập nhật CHECK-OUT vào bản ghi cuối cùng của ngày
             attendanceType = "TAN CA";
             log = logsToday.get(logsToday.size() - 1);
-            log.setCheckOutTime(now);
-            status = "CHECK_OUT";
-            // Nếu cần có thể tính toán xem có về sớm không ở đây
+            
+            LocalDateTime checkOutTime = now;
+            ShiftConfig shift = log.getShift();
+            
+            if (shift != null) {
+                LocalTime shiftEndTime = shift.getEndTime();
+                if (now.toLocalTime().isAfter(shiftEndTime)) {
+                    // Kiểm tra xem có đơn OT được duyệt không
+                    List<OvertimeRequest> otRequests = overtimeRequestRepository.findByUserIdAndDateAndStatus(
+                            user.getId(), today, "APPROVED");
+                    
+                    if (otRequests.isEmpty()) {
+                        // Không có đơn OT -> Giới hạn giờ về đúng giờ ca làm việc
+                        checkOutTime = LocalDateTime.of(today, shiftEndTime);
+                        status = "CHECK_OUT_CAP_NO_OT";
+                    } else {
+                        // Có đơn OT -> Kiểm tra xem có về quá giờ OT không
+                        LocalTime maxOtTime = otRequests.stream()
+                                .map(OvertimeRequest::getEndTime)
+                                .max(LocalTime::compareTo)
+                                .orElse(shiftEndTime);
+                        
+                        if (now.toLocalTime().isAfter(maxOtTime)) {
+                            checkOutTime = LocalDateTime.of(today, maxOtTime);
+                            status = "CHECK_OUT_CAP_OT_EXCEEDED";
+                        } else {
+                            status = "CHECK_OUT_WITH_OT";
+                        }
+                    }
+                } else {
+                    status = "CHECK_OUT_NORMAL";
+                }
+            } else {
+                status = "CHECK_OUT";
+            }
+            
+            log.setCheckOutTime(checkOutTime);
         }
         
         attendanceLogRepository.save(log);

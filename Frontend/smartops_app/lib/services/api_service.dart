@@ -463,4 +463,70 @@ class ApiService {
       rethrow;
     }
   }
+
+  // Overtime Management
+  Future<Map<String, dynamic>> submitOvertime(Map<String, dynamic> data) async {
+    try {
+      final options = await _getOptions();
+      final response = await _dio.post(ApiConstants.overtime, data: data, options: options);
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getMyOvertimeRequests() async {
+    try {
+      final options = await _getOptions();
+      final response = await _dio.get(ApiConstants.overtime, options: options);
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getAllOvertimeRequests() async {
+    try {
+      final options = await _getOptions();
+      final response = await _dio.get(ApiConstants.adminOvertime, options: options);
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> reviewOvertime(int otId, String status) async {
+    try {
+      final options = await _getOptions();
+      final response = await _dio.put(
+        ApiConstants.adminReviewOvertime(otId),
+        queryParameters: {'status': status},
+        options: options,
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Admin Notifications
+  Future<Map<String, dynamic>> getNotifications() async {
+    try {
+      final options = await _getOptions();
+      final response = await _dio.get('${ApiConstants.baseUrl}/admin/notifications', options: options);
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> markNotificationAsRead(int id) async {
+    try {
+      final options = await _getOptions();
+      final response = await _dio.put('${ApiConstants.baseUrl}/admin/notifications/$id/read', options: options);
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
