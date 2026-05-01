@@ -37,7 +37,7 @@ public class AuthController {
         try {
             ekycService.registerEkyc(userId, idCardImage, selfieImage);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success(null, "Đã gửi hồ sơ eKYC. Vui lòng chờ Admin phê duyệt."));
+                    .body(ApiResponse.success(null, "Đăng ký khuôn mặt thành công."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

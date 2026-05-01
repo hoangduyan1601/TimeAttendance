@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -97,9 +98,14 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = "ACCESS DENIED";
+        if (e is DioException && e.response?.data != null) {
+          errorMessage = e.response?.data['message'] ?? "ACCESS DENIED";
+        }
+        
         setState(() {
           _currentState = KioskState.failure;
-          _statusMessage = "ACCESS DENIED";
+          _statusMessage = errorMessage.toUpperCase();
           _liveLogs.insert(0, {
             'name': _identifiedUser?['fullName'] ?? 'UNKNOWN',
             'time': DateFormat('HH:mm:ss').format(DateTime.now()),

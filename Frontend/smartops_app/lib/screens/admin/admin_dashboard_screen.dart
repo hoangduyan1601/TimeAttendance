@@ -889,91 +889,118 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Báo cáo & Theo dõi Chấm công", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primaryNavy)),
-                    Text(_showSummary ? "Bảng tổng hợp công toàn công ty" : "Nhật ký chấm công chi tiết", 
-                      style: GoogleFonts.montserrat(fontSize: 12, color: AppTheme.secondarySlate)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Báo cáo & Theo dõi Chấm công", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primaryNavy)),
+                        Text(_showSummary ? "Bảng tổng hợp công toàn công ty" : "Nhật ký chấm công chi tiết", 
+                          style: GoogleFonts.montserrat(fontSize: 12, color: AppTheme.secondarySlate)),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        String start;
+                        String end;
+
+                        if (_reportFilter == 'MONTH') {
+                          DateTime firstDay = DateTime(_selectedYear, _selectedMonth, 1);
+                          DateTime lastDay = DateTime(_selectedYear, _selectedMonth + 1, 0);
+                          start = DateFormat('yyyy-MM-dd').format(firstDay);
+                          end = DateFormat('yyyy-MM-dd').format(lastDay);
+                        } else if (_reportFilter == 'WEEK') {
+                          start = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 7)));
+                          end = DateFormat('yyyy-MM-dd').format(DateTime.now());
+                        } else {
+                          start = DateFormat('yyyy-MM-dd').format(DateTime.now());
+                          end = start;
+                        }
+
+                        if (_showSummary) {
+                          _apiService.exportAttendanceSummaryReport(start, end);
+                        } else {
+                          _apiService.exportAttendanceReport(start, end);
+                        }
+                      },
+                      icon: const Icon(Icons.file_download_outlined, size: 18),
+                      label: Text(_showSummary ? "Xuất Bảng Công" : "Xuất Excel"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.success, 
+                        minimumSize: const Size(140, 44),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd))
+                      ),
+                    )
                   ],
                 ),
-                const Spacer(),
-                _buildToggleButton(),
-                const SizedBox(width: 24),
-                // Month Selector
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.background,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                    border: Border.all(color: AppTheme.dividerColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      value: _selectedMonth,
-                      items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(
-                        value: m, 
-                        child: Text("Tháng $m", style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600))
-                      )).toList(),
-                      onChanged: (v) {
-                        setState(() {
-                          _selectedMonth = v!;
-                          _reportFilter = 'MONTH';
-                        });
-                        _fetchData();
-                      },
-                    ),
-                  ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _buildToggleButton(),
+                    _buildFilterChip("Hôm nay", "TODAY"),
+                    _buildFilterChip("7 ngày qua", "WEEK"),
+                    _buildFilterChip("Theo tháng", "MONTH"),
+                    if (_reportFilter == 'MONTH') ...[
+                      // Month Selector
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.background,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                          border: Border.all(color: AppTheme.dividerColor),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _selectedMonth,
+                            items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(
+                              value: m, 
+                              child: Text("Tháng $m", style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600))
+                            )).toList(),
+                            onChanged: (v) {
+                              setState(() {
+                                _selectedMonth = v!;
+                                _reportFilter = 'MONTH';
+                              });
+                              _fetchData();
+                            },
+                          ),
+                        ),
+                      ),
+                      // Year Selector
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.background,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                          border: Border.all(color: AppTheme.dividerColor),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _selectedYear,
+                            items: [2024, 2025, 2026].map((y) => DropdownMenuItem(
+                              value: y, 
+                              child: Text("$y", style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600))
+                            )).toList(),
+                            onChanged: (v) {
+                              setState(() {
+                                _selectedYear = v!;
+                                _reportFilter = 'MONTH';
+                              });
+                              _fetchData();
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(width: 8),
-                // Year Selector
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.background,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                    border: Border.all(color: AppTheme.dividerColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      value: _selectedYear,
-                      items: [2024, 2025, 2026].map((y) => DropdownMenuItem(
-                        value: y, 
-                        child: Text("$y", style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600))
-                      )).toList(),
-                      onChanged: (v) {
-                        setState(() {
-                          _selectedYear = v!;
-                          _reportFilter = 'MONTH';
-                        });
-                        _fetchData();
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 24),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    String start = DateFormat('yyyy-MM-dd').format(DateTime.now());
-                    if (_reportFilter == 'WEEK') start = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 7)));
-                    if (_reportFilter == 'MONTH') start = DateFormat('yyyy-MM-dd').format(DateTime(DateTime.now().year, DateTime.now().month, 1));
-                    
-                    if (_showSummary) {
-                      _apiService.exportAttendanceSummaryReport(start, DateFormat('yyyy-MM-dd').format(DateTime.now()));
-                    } else {
-                      _apiService.exportAttendanceReport(start, DateFormat('yyyy-MM-dd').format(DateTime.now()));
-                    }
-                  },
-                  icon: const Icon(Icons.file_download_outlined, size: 18),
-                  label: Text(_showSummary ? "Xuất Bảng Công" : "Xuất Excel"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.success, 
-                    minimumSize: const Size(140, 44),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd))
-                  ),
-                )
               ],
             ),
           ),
@@ -1082,6 +1109,64 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               )),
             ]);
           }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showEmployeeAttendanceDetail(String employeeCode, String fullName) {
+    final details = _attendanceReports.where((r) => r['employeeCode'] == employeeCode).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
+        title: Row(
+          children: [
+            const Icon(Icons.person_search_rounded, color: AppTheme.primaryNavy),
+            const SizedBox(width: 12),
+            Expanded(child: Text('Chi tiết chấm công: $fullName', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 16))),
+            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+          ],
+        ),
+        content: SizedBox(
+          width: 800,
+          child: details.isEmpty 
+            ? const Center(child: Text("Không có dữ liệu chi tiết cho nhân viên này trong khoảng thời gian đã chọn."))
+            : SingleChildScrollView(
+                child: DataTable(
+                  headingTextStyle: GoogleFonts.montserrat(fontWeight: FontWeight.bold, color: AppTheme.secondarySlate, fontSize: 12),
+                  columns: const [
+                    DataColumn(label: Text("NGÀY")),
+                    DataColumn(label: Text("GIỜ VÀO")),
+                    DataColumn(label: Text("GIỜ RA")),
+                    DataColumn(label: Text("CA LÀM")),
+                    DataColumn(label: Text("TRẠNG THÁI")),
+                  ],
+                  rows: details.map((d) {
+                    final checkIn = d['checkInTime'] != null ? DateTime.parse(d['checkInTime']) : null;
+                    final checkOut = d['checkOutTime'] != null ? DateTime.parse(d['checkOutTime']) : null;
+                    final status = d['status'] ?? 'N/A';
+                    final bool isSuccess = status == 'ON_TIME' || status == 'SUCCESS';
+
+                    return DataRow(cells: [
+                      DataCell(Text(checkIn != null ? DateFormat('dd/MM/yyyy').format(checkIn) : 'N/A')),
+                      DataCell(Text(checkIn != null ? DateFormat('HH:mm:ss').format(checkIn) : '--:--')),
+                      DataCell(Text(checkOut != null ? DateFormat('HH:mm:ss').format(checkOut) : '--:--')),
+                      DataCell(Text(d['shiftName'] ?? 'N/A')),
+                      DataCell(Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isSuccess ? AppTheme.success.withOpacity(0.1) : AppTheme.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4)
+                        ),
+                        child: Text(isSuccess ? "ĐÚNG GIỜ" : "ĐI MUỘN", 
+                          style: TextStyle(color: isSuccess ? AppTheme.success : AppTheme.error, fontSize: 10, fontWeight: FontWeight.bold)),
+                      )),
+                    ]);
+                  }).toList(),
+                ),
+              ),
         ),
       ),
     );
@@ -1202,60 +1287,64 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   int unexcused = workingDays - present - excused;
                   if (unexcused < 0) unexcused = 0;
 
-                  return Table(
-                    border: TableBorder(
-                      bottom: BorderSide(color: AppTheme.dividerColor),
-                      left: BorderSide(color: AppTheme.dividerColor),
-                      right: BorderSide(color: AppTheme.dividerColor),
-                      verticalInside: BorderSide(color: AppTheme.dividerColor),
-                    ),
-                    columnWidths: const {
-                      0: FixedColumnWidth(50),
-                      1: FixedColumnWidth(90),
-                      2: FlexColumnWidth(2),
-                      3: FlexColumnWidth(1.5),
-                      4: FixedColumnWidth(70),
-                      5: FixedColumnWidth(70),
-                      6: FixedColumnWidth(70),
-                      7: FixedColumnWidth(70),
-                      8: FixedColumnWidth(110),
-                    },
-                    children: [
-                      TableRow(
-                        children: [
-                          _dataCell("${idx + 1}"),
-                          _dataCell(data['employeeCode'], bold: true),
-                          _dataCell(data['fullName'], align: TextAlign.left),
-                          _dataCell(data['department'], align: TextAlign.left),
-                          _dataCell("$present", color: AppTheme.success, bold: true),
-                          _dataCell("${data['late']}", color: data['late'] > 0 ? AppTheme.error : null),
-                          _dataCell("$excused", color: AppTheme.info),
-                          _dataCell("$unexcused", color: unexcused > 0 ? AppTheme.warning : null),
-                          Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                            alignment: Alignment.center,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text("${data['totalHours'].toStringAsFixed(1)}h", 
-                                  style: GoogleFonts.montserrat(
-                                    fontSize: 13, 
-                                    fontWeight: FontWeight.bold,
-                                    color: incomplete > 0 ? AppTheme.error : AppTheme.primaryNavy
-                                  )),
-                                if (incomplete > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Tooltip(
-                                    message: "Thiếu $incomplete lần chấm công ra",
-                                    child: const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 14),
-                                  ),
-                                ]
-                              ],
+                  return InkWell(
+                    onTap: () => _showEmployeeAttendanceDetail(data['employeeCode'], data['fullName']),
+                    hoverColor: AppTheme.primaryNavy.withOpacity(0.05),
+                    child: Table(
+                      border: TableBorder(
+                        bottom: BorderSide(color: AppTheme.dividerColor),
+                        left: BorderSide(color: AppTheme.dividerColor),
+                        right: BorderSide(color: AppTheme.dividerColor),
+                        verticalInside: BorderSide(color: AppTheme.dividerColor),
+                      ),
+                      columnWidths: const {
+                        0: FixedColumnWidth(50),
+                        1: FixedColumnWidth(90),
+                        2: FlexColumnWidth(2),
+                        3: FlexColumnWidth(1.5),
+                        4: FixedColumnWidth(70),
+                        5: FixedColumnWidth(70),
+                        6: FixedColumnWidth(70),
+                        7: FixedColumnWidth(70),
+                        8: FixedColumnWidth(110),
+                      },
+                      children: [
+                        TableRow(
+                          children: [
+                            _dataCell("${idx + 1}"),
+                            _dataCell(data['employeeCode'], bold: true),
+                            _dataCell(data['fullName'], align: TextAlign.left),
+                            _dataCell(data['department'], align: TextAlign.left),
+                            _dataCell("$present", color: AppTheme.success, bold: true),
+                            _dataCell("${data['late']}", color: data['late'] > 0 ? AppTheme.error : null),
+                            _dataCell("$excused", color: AppTheme.info),
+                            _dataCell("$unexcused", color: unexcused > 0 ? AppTheme.warning : null),
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text("${data['totalHours'].toStringAsFixed(1)}h", 
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 13, 
+                                      fontWeight: FontWeight.bold,
+                                      color: incomplete > 0 ? AppTheme.error : AppTheme.primaryNavy
+                                    )),
+                                  if (incomplete > 0) ...[
+                                    const SizedBox(width: 4),
+                                    Tooltip(
+                                      message: "Thiếu $incomplete lần chấm công ra",
+                                      child: const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 14),
+                                    ),
+                                  ]
+                                ],
+                              ),
                             ),
-                          ),
-                        ]
-                      )
-                    ],
+                          ]
+                        )
+                      ],
+                    ),
                   );
                 },
               ),
@@ -1894,17 +1983,44 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   columns: const [
                     DataColumn(label: Text("MÃ YÊU CẦU")),
                     DataColumn(label: Text("NHÂN VIÊN")),
-                    DataColumn(label: Text("THỜI GIAN GỬI")),
+                    DataColumn(label: Text("ĐỘ KHỚP (AI)")),
+                    DataColumn(label: Text("THÔNG TIN OCR")),
                     DataColumn(label: Text("DỮ LIỆU GỐC")),
                     DataColumn(label: Text("TRẠNG THÁI")),
                     DataColumn(label: Text("THAO TÁC")),
                   ],
                   rows: _pendingEkyc.map((item) {
                     final int userId = item['id'];
+                    final double? similarity = item['ekycSimilarity'] != null ? (item['ekycSimilarity'] as num).toDouble() : null;
+                    
                     return DataRow(cells: [
                       DataCell(Text("KYC-${item['id']}")),
                       DataCell(Text(item['fullName'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Text(item['username'] ?? 'N/A')),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: similarity != null && similarity >= 0.75 ? AppTheme.success.withOpacity(0.1) : AppTheme.warning.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            similarity != null ? "${(similarity * 100).toStringAsFixed(1)}%" : "N/A",
+                            style: TextStyle(
+                              color: similarity != null && similarity >= 0.75 ? AppTheme.success : AppTheme.warning,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                      DataCell(Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text("Số: ${item['idNumber'] ?? 'N/A'}", style: const TextStyle(fontSize: 10)),
+                          Text("Tên ID: ${item['fullNameOnId'] ?? 'N/A'}", style: const TextStyle(fontSize: 10, color: AppTheme.secondarySlate)),
+                        ],
+                      )),
                       DataCell(InkWell(
                         onTap: () => _showImagePreview(item['idCardUrl'], item['selfieUrl']),
                         child: Row(

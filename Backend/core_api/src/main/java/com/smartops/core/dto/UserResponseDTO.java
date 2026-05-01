@@ -29,4 +29,7 @@ public class UserResponseDTO {
     private String assignedShiftNotes;
     private String idCardUrl;
     private String selfieUrl;
+    private String idNumber;
+    private String fullNameOnId;
+    private Double ekycSimilarity;
 }

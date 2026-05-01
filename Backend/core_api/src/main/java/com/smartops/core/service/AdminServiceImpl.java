@@ -104,6 +104,9 @@ public class AdminServiceImpl implements AdminService {
                         .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
                         .idCardUrl(user.getFaceData() != null ? user.getFaceData().getIdCardUrl() : null)
                         .selfieUrl(user.getFaceData() != null ? user.getFaceData().getSelfieUrl() : null)
+                        .idNumber(user.getFaceData() != null ? user.getFaceData().getIdNumber() : null)
+                        .fullNameOnId(user.getFaceData() != null ? user.getFaceData().getFullNameOnId() : null)
+                        .ekycSimilarity(user.getFaceData() != null ? user.getFaceData().getEkycSimilarity() : null)
                         .build())
                 .collect(Collectors.toList());
     }

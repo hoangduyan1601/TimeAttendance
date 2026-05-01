@@ -133,6 +133,9 @@ public class UserServiceImpl implements UserService {
                 .assignedShiftName(user.getAssignedShift() != null ? user.getAssignedShift().getShiftName() : null)
                 .idCardUrl(user.getFaceData() != null ? user.getFaceData().getIdCardUrl() : null)
                 .selfieUrl(user.getFaceData() != null ? user.getFaceData().getSelfieUrl() : null)
+                .idNumber(user.getFaceData() != null ? user.getFaceData().getIdNumber() : null)
+                .fullNameOnId(user.getFaceData() != null ? user.getFaceData().getFullNameOnId() : null)
+                .ekycSimilarity(user.getFaceData() != null ? user.getFaceData().getEkycSimilarity() : null)
                 .build();
     }
 }

@@ -37,6 +37,15 @@ public class FaceData {
     @Column(name = "selfie_url")
     private String selfieUrl;
 
+    @Column(name = "id_number")
+    private String idNumber;
+
+    @Column(name = "full_name_on_id")
+    private String fullNameOnId;
+
+    @Column(name = "ekyc_similarity")
+    private Double ekycSimilarity;
+
     @Column(name = "last_updated")
     private LocalDateTime lastUpdated;
 

@@ -3,7 +3,7 @@ import numpy as np
 from deepface import DeepFace
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import io
 import base64
 import os
@@ -21,6 +21,13 @@ class AiCompareRequest(BaseModel):
     storedVector: List[float]
     liveImageBase64: str
 
+class EkycResponse(BaseModel):
+    similarity: float
+    isMatch: bool
+    ocrData: Optional[dict] = None
+    vector: Optional[List[float]] = None
+    message: str = "Success"
+
 @app.post("/internal/ai/embed")
 async def extract_vector(file: UploadFile = File(...)):
     try:
@@ -36,6 +43,53 @@ async def extract_vector(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt.")
 
         return {"vector": results[0]["embedding"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/internal/ai/routes")
+async def list_routes():
+    return [{"path": route.path, "name": route.name, "methods": route.methods} for route in app.routes]
+
+@app.post("/internal/ai/verify-ekyc")
+async def verify_ekyc(id_card: UploadFile = File(...), selfie: UploadFile = File(...)):
+    print(">>> Received request for /internal/ai/verify-ekyc")
+    try:
+        # 1. Read images
+        id_contents = await id_card.read()
+        id_nparr = np.frombuffer(id_contents, np.uint8)
+        id_img = cv2.imdecode(id_nparr, cv2.IMREAD_COLOR)
+
+        selfie_contents = await selfie.read()
+        selfie_nparr = np.frombuffer(selfie_contents, np.uint8)
+        selfie_img = cv2.imdecode(selfie_nparr, cv2.IMREAD_COLOR)
+
+        if id_img is None or selfie_img is None:
+            raise HTTPException(status_code=400, detail="Không thể giải mã hình ảnh.")
+
+        # 2. Face Matching (ID vs Selfie)
+        try:
+            result = DeepFace.verify(img1_path=id_img, img2_path=selfie_img, model_name=MODEL_NAME, distance_metric=DISTANCE_METRIC, enforce_detection=True)
+            similarity = 1 - result["distance"]
+            is_match = result["verified"]
+        except Exception as face_e:
+            print(f"Face matching error: {face_e}")
+            similarity = 0.0
+            is_match = False
+
+        # 3. OCR (Temporarily Disabled)
+        ocr_data = {
+            "idNumber": "N/A",
+            "fullName": "N/A",
+            "message": "OCR feature is currently disabled"
+        }
+
+        return {
+            "similarity": round(similarity, 4),
+            "isMatch": is_match,
+            "ocrData": ocr_data,
+            "vector": DeepFace.represent(img_path=selfie_img, model_name=MODEL_NAME, enforce_detection=True)[0]["embedding"],
+            "message": "Verify thành công" if is_match else "Khuôn mặt không khớp với CCCD"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

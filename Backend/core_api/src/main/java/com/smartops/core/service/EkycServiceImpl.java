@@ -1,6 +1,7 @@
 package com.smartops.core.service;
 
 import com.smartops.core.dto.AiVectorResponse;
+import com.smartops.core.dto.EkycAiResponse;
 import com.smartops.core.entity.FaceData;
 import com.smartops.core.entity.User;
 import com.smartops.core.repository.FaceDataRepository;
@@ -48,29 +49,36 @@ public class EkycServiceImpl implements EkycService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Nhân sự không tồn tại"));
 
-        // 1. Lưu ảnh cục bộ (Local Storage)
-        String idCardFileName = saveFile(idCardImage, "ID_" + userId);
+        // 1. Lưu ảnh cục bộ
+        String idCardFileName = saveFile(idCardImage, "IDCARD_" + userId);
         String selfieFileName = saveFile(selfieImage, "SELFIE_" + userId);
 
-        // 2. Gọi AI Microservice để lấy Face Vector
-        double[] faceVector = callAiServiceToExtractVector(selfieImage);
+        // 2. Gọi AI Service để verify eKYC (So khớp ảnh và OCR)
+        EkycAiResponse aiResponse = callAiServiceToVerifyEkyc(idCardImage, selfieImage);
 
-        // 3. Lưu hoặc cập nhật FaceData
+        // 3. Lưu FaceData
         FaceData faceData = faceDataRepository.findByUserId(userId)
                 .orElse(FaceData.builder().user(user).build());
 
-        faceData.setFaceVector(faceVector);
-        // URL để hiển thị: http://localhost:8081/api/v1/uploads/ekyc/SELFIE_...
+        faceData.setFaceVector(aiResponse.getVector());
         faceData.setIdCardUrl("/uploads/ekyc/" + idCardFileName);
         faceData.setSelfieUrl("/uploads/ekyc/" + selfieFileName);
+        faceData.setEkycSimilarity(aiResponse.getSimilarity());
+        
+        if (aiResponse.getOcrData() != null) {
+            faceData.setIdNumber((String) aiResponse.getOcrData().get("idNumber"));
+            faceData.setFullNameOnId((String) aiResponse.getOcrData().get("fullName"));
+        }
+        
         faceData.setLastUpdated(LocalDateTime.now());
         faceDataRepository.save(faceData);
 
-        // 4. Cập nhật trạng thái User
+        // 4. Chuyển về PENDING để Admin duyệt thủ công
         user.setEkycStatus("PENDING");
         userRepository.save(user);
 
-        log.info("Đã đăng ký eKYC thành công cho User ID: {}. Ảnh lưu tại: {}", userId, faceData.getSelfieUrl());
+        log.info("Đã đăng ký eKYC thành công cho User ID: {}. Độ khớp: {}%. Chờ duyệt.", 
+                userId, Math.round(aiResponse.getSimilarity() * 100));
     }
 
     private String saveFile(MultipartFile file, String prefix) {
@@ -90,13 +98,39 @@ public class EkycServiceImpl implements EkycService {
         }
     }
 
+    private EkycAiResponse callAiServiceToVerifyEkyc(MultipartFile idCard, MultipartFile selfie) {
+        try {
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            builder.part("id_card", idCard.getResource());
+            builder.part("selfie", selfie.getResource());
+
+            EkycAiResponse response = webClient.post()
+                    .uri(aiServiceUrl + "/internal/ai/verify-ekyc")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(BodyInserters.fromMultipartData(builder.build()))
+                    .retrieve()
+                    .bodyToMono(EkycAiResponse.class)
+                    .block();
+            
+            if (response == null) {
+                throw new RuntimeException("AI Service không phản hồi");
+            }
+            
+            return response;
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gọi AI Service (Verify eKYC): {}", e.getMessage());
+            throw new RuntimeException("Hệ thống nhận diện đang gặp sự cố: " + e.getMessage());
+        }
+    }
+
     private double[] callAiServiceToExtractVector(MultipartFile file) {
         try {
             MultipartBodyBuilder builder = new MultipartBodyBuilder();
             builder.part("file", file.getResource());
 
             AiVectorResponse response = webClient.post()
-                    .uri(aiServiceUrl + extractEndpoint)
+                    .uri(aiServiceUrl + "/internal/ai/embed")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(BodyInserters.fromMultipartData(builder.build()))
                     .retrieve()
@@ -104,14 +138,14 @@ public class EkycServiceImpl implements EkycService {
                     .block();
             
             if (response == null || response.getVector() == null) {
-                throw new RuntimeException("Không thể nhận diện khuôn mặt từ ảnh Selfie");
+                throw new RuntimeException("Không thể nhận diện khuôn mặt từ ảnh chụp");
             }
             
             return response.getVector();
 
         } catch (Exception e) {
-            log.error("Lỗi khi gọi AI Service: {}", e.getMessage());
-            throw new RuntimeException("Hệ thống nhận diện khuôn mặt đang gặp sự cố: " + e.getMessage());
+            log.error("Lỗi khi gọi AI Service (Embed): {}", e.getMessage());
+            throw new RuntimeException("Hệ thống nhận diện đang gặp sự cố: " + e.getMessage());
         }
     }
 }

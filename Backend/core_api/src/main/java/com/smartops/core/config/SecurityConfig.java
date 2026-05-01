@@ -32,7 +32,8 @@ public class SecurityConfig {
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return (web) -> web.ignoring()
-            .requestMatchers(new AntPathRequestMatcher("/uploads/**"));
+            .requestMatchers(new AntPathRequestMatcher("/uploads/**"))
+            .requestMatchers(new AntPathRequestMatcher("/api/v1/uploads/**"));
     }
 
     @Bean
@@ -54,7 +55,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Sử dụng cấu hình trên
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/health", "/h2-console/**", "/uploads/**").permitAll()
+                .requestMatchers("/health", "/h2-console/**", "/uploads/**", "/api/v1/uploads/**").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/kiosk/**").permitAll()
                 .requestMatchers("/api/v1/admin/reports/export").permitAll()

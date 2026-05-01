@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/services/api_service.dart';
 
-enum EkycStep { faceStraight, faceLeft, faceRight, faceUp }
+enum EkycStep { faceStraight }
 
 class EkycScreen extends StatefulWidget {
   const EkycScreen({super.key});
@@ -21,21 +21,62 @@ class _EkycScreenState extends State<EkycScreen> {
   EkycStep _currentStep = EkycStep.faceStraight;
   
   final ApiService _apiService = ApiService();
-  List<Uint8List> _facePhotos = [];
+  final List<Uint8List> _facePhotos = [];
   bool _isProcessing = false;
+  
+  String _currentStatus = "NOT_STARTED";
+  String? _savedSelfieUrl;
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
+    _checkStatus();
+  }
+
+  Future<void> _checkStatus() async {
+    if (!mounted) return;
+    setState(() => _isProcessing = true);
+    try {
+      final profile = await _apiService.getMyProfile();
+      if (mounted) {
+        setState(() {
+          _currentStatus = profile['data']['ekycStatus'] ?? "NOT_STARTED";
+          _savedSelfieUrl = profile['data']['selfieUrl'];
+          _isProcessing = false;
+        });
+        
+        if (_currentStatus == "NOT_STARTED" || _currentStatus == "REJECTED") {
+          _initializeCamera();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error checking status: $e");
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+      await _setupCamera(cameras, false);
+    } catch (e) {
+      debugPrint("Error init camera: $e");
+    }
+  }
+
+  Future<void> _setupCamera(List<CameraDescription> cameras, bool useBack) async {
+    if (_controller != null) {
+      await _controller!.dispose();
+    }
+
+    CameraDescription description = cameras.firstWhere(
+      (cam) => cam.lensDirection == (useBack ? CameraLensDirection.back : CameraLensDirection.front),
+      orElse: () => cameras.first,
+    );
 
     _controller = CameraController(
-      cameras[0],
+      description,
       ResolutionPreset.high,
       enableAudio: false,
     );
@@ -59,48 +100,55 @@ class _EkycScreenState extends State<EkycScreen> {
     try {
       final XFile photo = await _controller!.takePicture();
       final Uint8List bytes = await photo.readAsBytes();
+      
+      _facePhotos.clear();
       _facePhotos.add(bytes);
-
-      setState(() {
-        if (_currentStep == EkycStep.faceStraight) _currentStep = EkycStep.faceLeft;
-        else if (_currentStep == EkycStep.faceLeft) _currentStep = EkycStep.faceRight;
-        else if (_currentStep == EkycStep.faceRight) _currentStep = EkycStep.faceUp;
-        else {
-          _submitEkyc();
-          return;
-        }
-        _isProcessing = false;
-      });
+      
+      // Gửi ngay lập tức sau khi chụp nhìn thẳng (Chỉ làm 1 bước cho ổn định)
+      _submitEkyc();
+      
     } catch (e) {
       debugPrint("Error capturing: $e");
-      setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
   void _submitEkyc() async {
-    setState(() => _isProcessing = true);
+    if (_facePhotos.isEmpty) return;
+    
     try {
-      await _apiService.registerEkyc(_facePhotos[0], _facePhotos[0]);
+      await _apiService.registerEkyc(_facePhotos[0]);
       
       if (mounted) {
         _showSuccess();
-        Navigator.pop(context);
+        
+        // Quan trọng: Tắt camera và chuyển trạng thái ngay để tránh đơ
+        if (_controller != null) {
+          await _controller!.dispose();
+          _controller = null;
+        }
+
+        setState(() {
+          _currentStatus = "PENDING";
+          _isCameraInitialized = false;
+          _facePhotos.clear();
+          _isProcessing = false;
+        });
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Submission failed: $e', style: GoogleFonts.montserrat()), backgroundColor: AppTheme.error),
+          SnackBar(content: Text('Đăng ký thất bại: $e', style: GoogleFonts.montserrat()), backgroundColor: AppTheme.error),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
   void _showSuccess() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Biometric Registration Successful!', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold)),
+        content: Text('Đăng ký khuôn mặt thành công!', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold)),
         backgroundColor: AppTheme.success,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(20),
@@ -109,26 +157,25 @@ class _EkycScreenState extends State<EkycScreen> {
     );
   }
 
-  String _getInstruction() {
-    switch (_currentStep) {
-      case EkycStep.faceStraight: return "LOOK STRAIGHT";
-      case EkycStep.faceLeft: return "TURN FACE LEFT";
-      case EkycStep.faceRight: return "TURN FACE RIGHT";
-      case EkycStep.faceUp: return "LOOK UPWARDS";
-    }
+  String _getInstructionTranslate() {
+    return "NHÌN THẲNG";
   }
 
   double _getStepProgress() {
-    switch (_currentStep) {
-      case EkycStep.faceStraight: return 0.25;
-      case EkycStep.faceLeft: return 0.5;
-      case EkycStep.faceRight: return 0.75;
-      case EkycStep.faceUp: return 1.0;
-    }
+    return 1.0;
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isProcessing && _currentStatus == "NOT_STARTED") {
+      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator(color: AppTheme.info)));
+    }
+
+    // Show Status Overlay if already PENDING or APPROVED
+    if (_currentStatus == "PENDING" || _currentStatus == "APPROVED") {
+      return _buildStatusView();
+    }
+
     if (!_isCameraInitialized) return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator(color: AppTheme.info)));
 
     return Scaffold(
@@ -137,8 +184,11 @@ class _EkycScreenState extends State<EkycScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text("ĐỊNH DANH BIOMETRIC", style: GoogleFonts.montserrat(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 2)),
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text("ĐĂNG KÝ KHUÔN MẶT", style: GoogleFonts.montserrat(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: 2)),
       ),
       body: Stack(
         children: [
@@ -202,7 +252,7 @@ class _EkycScreenState extends State<EkycScreen> {
               ),
               child: Stack(
                 children: [
-                  _buildScanningLine(),
+                  _buildScanningLine(350),
                 ],
               ),
             ),
@@ -212,13 +262,132 @@ class _EkycScreenState extends State<EkycScreen> {
     );
   }
 
-  Widget _buildScanningLine() {
+  Widget _buildStatusView() {
+    bool isApproved = _currentStatus == "APPROVED";
+    bool isRejected = _currentStatus == "REJECTED";
+    
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SingleChildScrollView(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 48.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppTheme.white,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                    boxShadow: AppTheme.softShadow,
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        isApproved ? Icons.verified_user_rounded : (isRejected ? Icons.gpp_bad_rounded : Icons.pending_actions_rounded),
+                        size: 80,
+                        color: isApproved ? AppTheme.success : (isRejected ? AppTheme.error : AppTheme.warning),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        isApproved ? "ĐÃ XÁC THỰC THÀNH CÔNG" : (isRejected ? "ĐỊNH DANH BỊ TỪ CHỐI" : "HỒ SƠ ĐANG CHỜ PHÊ DUYỆT"),
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.montserrat(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20,
+                          color: AppTheme.primaryNavy,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        isApproved 
+                          ? "Khuôn mặt của bạn đã được hệ thống phê duyệt. Bạn có thể chấm công tại Kiosk."
+                          : (isRejected 
+                              ? "Hồ sơ của bạn không được chấp nhận. Vui lòng thực hiện đăng ký lại với hình ảnh rõ nét hơn."
+                              : "Thông tin định danh của bạn đã được gửi lên hệ thống. Vui lòng chờ Admin kiểm tra và phê duyệt."),
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 14,
+                          color: AppTheme.secondarySlate,
+                        ),
+                      ),
+                      if (_savedSelfieUrl != null) ...[
+                        const SizedBox(height: 24),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                          child: Image.network(
+                            "http://localhost:8081/api/v1" + _savedSelfieUrl!,
+                            height: 180,
+                            width: 135,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              height: 180,
+                              width: 135,
+                              color: AppTheme.background,
+                              child: const Icon(Icons.broken_image, color: AppTheme.secondarySlate),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text("Ảnh định danh gốc", style: GoogleFonts.montserrat(fontSize: 12, color: AppTheme.secondarySlate, fontStyle: FontStyle.italic)),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _checkStatus(),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text("CẬP NHẬT TRẠNG THÁI"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryNavy,
+                      foregroundColor: AppTheme.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (!isApproved)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _currentStatus = "NOT_STARTED";
+                          _currentStep = EkycStep.faceStraight;
+                          _facePhotos.clear();
+                        });
+                        _initializeCamera();
+                      },
+                      icon: const Icon(Icons.camera_front_rounded),
+                      label: const Text("ĐĂNG KÝ LẠI ĐỊNH DANH"),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        side: const BorderSide(color: AppTheme.primaryNavy),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanningLine(double height) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(seconds: 2),
       builder: (context, value, child) {
         return Positioned(
-          top: 350 * value,
+          top: height * value,
           left: 0,
           right: 0,
           child: Container(
@@ -230,7 +399,7 @@ class _EkycScreenState extends State<EkycScreen> {
           ),
         );
       },
-      onEnd: () {}, // Handled by repeating if needed, but here we just need a visual
+      onEnd: () {}, 
     );
   }
 
@@ -299,14 +468,5 @@ class _EkycScreenState extends State<EkycScreen> {
         ],
       ),
     );
-  }
-
-  String _getInstructionTranslate() {
-    switch (_currentStep) {
-      case EkycStep.faceStraight: return "NHÌN THẲNG";
-      case EkycStep.faceLeft: return "QUAY SANG TRÁI";
-      case EkycStep.faceRight: return "QUAY SANG PHẢI";
-      case EkycStep.faceUp: return "NGƯỚC LÊN TRÊN";
-    }
   }
 }

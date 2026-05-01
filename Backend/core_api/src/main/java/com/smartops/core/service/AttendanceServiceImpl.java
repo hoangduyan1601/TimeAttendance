@@ -4,6 +4,7 @@ import com.smartops.core.dto.*;
 import com.smartops.core.entity.*;
 import com.smartops.core.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AttendanceServiceImpl implements AttendanceService {
 
     private final AttendanceLogRepository attendanceLogRepository;
@@ -41,33 +43,47 @@ public class AttendanceServiceImpl implements AttendanceService {
         User user = userRepository.findById(userSummary.getId())
                 .orElseThrow(() -> new RuntimeException("Nhân sự không tồn tại"));
 
+        // CHỈ CHO PHÉP NẾU ĐÃ DUYỆT EKYC
+        if (!"APPROVED".equals(user.getEkycStatus())) {
+            throw new RuntimeException("Tài khoản chưa được phê duyệt định danh eKYC. Vui lòng liên hệ Admin.");
+        }
+
         // 2. Gọi AI (Xác thực khuôn mặt)
         double similarity = 0.0;
         boolean isMatch = false;
+        
+        FaceData faceData = faceDataRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Dữ liệu khuôn mặt chưa được khởi tạo. Vui lòng thực hiện eKYC."));
+        
+        String liveImage = request.getLiveImageBase64();
+        if (liveImage == null || liveImage.isEmpty()) {
+            throw new RuntimeException("Không nhận được hình ảnh từ Camera.");
+        }
+
         try {
-            FaceData faceData = faceDataRepository.findByUserId(user.getId()).orElse(null);
-            String liveImage = request.getLiveImageBase64();
+            AiCompareRequest aiRequest = AiCompareRequest.builder()
+                    .storedVector(faceData.getFaceVector())
+                    .liveImageBase64(liveImage)
+                    .build();
             
-            if (faceData != null && liveImage != null && !liveImage.isEmpty()) {
-                AiCompareRequest aiRequest = AiCompareRequest.builder()
-                        .storedVector(faceData.getFaceVector())
-                        .liveImageBase64(liveImage)
-                        .build();
-                
-                AiCompareResponse aiResponse = webClient.post()
-                        .uri(aiServiceUrl + compareEndpoint)
-                        .bodyValue(aiRequest)
-                        .retrieve()
-                        .bodyToMono(AiCompareResponse.class)
-                        .block();
-                if (aiResponse != null) {
-                    similarity = aiResponse.getSimilarity();
-                    isMatch = similarity >= 0.4; // Ngưỡng chấp nhận
-                }
+            AiCompareResponse aiResponse = webClient.post()
+                    .uri(aiServiceUrl + compareEndpoint)
+                    .bodyValue(aiRequest)
+                    .retrieve()
+                    .bodyToMono(AiCompareResponse.class)
+                    .block();
+            
+            if (aiResponse != null) {
+                similarity = aiResponse.getSimilarity();
+                isMatch = aiResponse.isMatch(); // Sử dụng isMatch từ AI Service
             }
         } catch (Exception e) {
-            System.err.println("AI Service Error (Bypassed): " + e.getMessage());
-            // Bỏ qua lỗi AI để tiếp tục chấm công
+            log.error("Lỗi AI Service: {}", e.getMessage());
+            throw new RuntimeException("Hệ thống nhận diện khuôn mặt đang gặp sự cố. Thử lại sau.");
+        }
+
+        if (!isMatch) {
+            throw new RuntimeException("Xác thực khuôn mặt thất bại (Độ khớp: " + Math.round(similarity * 100) + "%). Vui lòng thử lại.");
         }
 
         // 3. Xác định trạng thái VÀO CA hoặc TAN CA
@@ -78,7 +94,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<AttendanceLog> logsToday = attendanceLogRepository.findAllByUserIdAndCheckInTimeBetween(
                 user.getId(), today.atStartOfDay(), today.atTime(23, 59, 59));
 
-        AttendanceLog log;
+        AttendanceLog attendanceLog;
         String attendanceType;
         String status = "SUCCESS";
 
@@ -101,7 +117,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 status = now.toLocalTime().isAfter(shiftConfig.getStartTime().plusMinutes(grace)) ? "LATE" : "ON_TIME";
             }
 
-            log = AttendanceLog.builder()
+            attendanceLog = AttendanceLog.builder()
                     .user(user)
                     .shift(shiftConfig)
                     .checkInTime(now)
@@ -112,10 +128,10 @@ public class AttendanceServiceImpl implements AttendanceService {
         } else {
             // Đã có bản ghi -> Cập nhật CHECK-OUT vào bản ghi cuối cùng của ngày
             attendanceType = "TAN CA";
-            log = logsToday.get(logsToday.size() - 1);
+            attendanceLog = logsToday.get(logsToday.size() - 1);
             
             LocalDateTime checkOutTime = now;
-            ShiftConfig shift = log.getShift();
+            ShiftConfig shift = attendanceLog.getShift();
             
             if (shift != null) {
                 LocalTime shiftEndTime = shift.getEndTime();
@@ -149,10 +165,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 status = "CHECK_OUT";
             }
             
-            log.setCheckOutTime(checkOutTime);
+            attendanceLog.setCheckOutTime(checkOutTime);
         }
         
-        attendanceLogRepository.save(log);
+        attendanceLogRepository.save(attendanceLog);
 
         return KioskVerifyResponse.builder()
                 .employeeName(user.getFullName() + " [" + attendanceType + "]")
@@ -232,7 +248,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             minutesLate = Duration.between(shiftStartTime, currentTime).toMinutes();
         }
 
-        AttendanceLog log = AttendanceLog.builder()
+        AttendanceLog attendanceLog = AttendanceLog.builder()
                 .user(user)
                 .shift(shiftConfig)
                 .checkInTime(now)
@@ -241,7 +257,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .verifiedByFace(true)
                 .build();
 
-        AttendanceLog savedLog = attendanceLogRepository.save(log);
+        AttendanceLog savedLog = attendanceLogRepository.save(attendanceLog);
 
         return AttendanceResponseDTO.builder()
                 .id(savedLog.getId())

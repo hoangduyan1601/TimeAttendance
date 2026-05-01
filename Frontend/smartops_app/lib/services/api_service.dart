@@ -50,25 +50,25 @@ class ApiService {
       rethrow;
     }
   }
+Future<Map<String, dynamic>> registerEkyc(Uint8List selfie) async {
+  try {
+    final options = await _getOptions();
 
-  // eKYC
-  Future<Map<String, dynamic>> registerEkyc(Uint8List idCardBytes, Uint8List selfieBytes) async {
-    try {
-      final options = await _getOptions();
-      final formData = FormData.fromMap({
-        'id_card': MultipartFile.fromBytes(idCardBytes, filename: 'id_card.jpg'),
-        'selfie': MultipartFile.fromBytes(selfieBytes, filename: 'selfie.jpg'),
-      });
-      final response = await _dio.post(
-        ApiConstants.ekyc,
-        data: formData,
-        options: options,
-      );
-      return response.data;
-    } catch (e) {
-      rethrow;
-    }
+    final formData = FormData.fromMap({
+      'selfie': MultipartFile.fromBytes(selfie, filename: 'selfie.jpg'),
+    });
+
+    final response = await _dio.post(
+      '${ApiConstants.baseUrl}/auth/ekyc',
+      data: formData,
+      options: options,
+    );
+    return response.data;
+  } catch (e) {
+    rethrow;
   }
+}
+
 
   // QR Code
   Future<Map<String, dynamic>> getQrCode() async {
