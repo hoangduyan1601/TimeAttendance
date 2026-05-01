@@ -1,0 +1,79 @@
+================================================================================
+HƯỚNG DẪN CHI TIẾT TEST API HỆ THỐNG ĐIỂM DANH SMARTOPS
+================================================================================
+
+I. AI MICROSERVICE (PYTHON - PORT 8000)
+--------------------------------------------------------------------------------
+Dịch vụ này xử lý trực tiếp các tác vụ AI (DeepFace).
+
+1. API Trích xuất đặc trưng (Embedding)
+   - URL: http://localhost:8000/internal/ai/embed
+   - Method: POST
+   - Cấu hình Postman:
+     + Tab Body -> Chọn "form-data"
+     + Key: Nhập "file" -> Di chuột vào chữ "file", chọn kiểu "File" (thay vì Text)
+     + Value: Nhấn "Select Files" và chọn 1 ảnh chân dung rõ mặt.
+   - Kết quả mong đợi: Trả về JSON chứa mảng "vector" gồm các số thực.
+
+2. API So sánh khuôn mặt (Compare)
+   - URL: http://localhost:8000/internal/ai/compare
+   - Method: POST
+   - Cấu hình Postman:
+     + Tab Body -> Chọn "raw" -> Chọn định dạng "JSON"
+     + Nội dung mẫu:
+       {
+         "storedVector": [0.12, -0.05, ...], // Mảng lấy từ kết quả API /embed
+         "liveImageBase64": "data:image/jpeg;base64,/9j/4AAQSkZ..." // Ảnh base64
+       }
+   - Kết quả mong đợi: {"isMatch": true/false, "similarity": 0.xx}
+
+II. BACKEND CORE API (JAVA - PORT 9090)
+--------------------------------------------------------------------------------
+Lưu ý: Port của backend chính là 9090.
+
+1. API Đăng nhập (Lấy Token)
+   - URL: http://localhost:9090/api/v1/auth/login
+   - Method: POST
+   - Body (raw - JSON):
+     {
+       "username": "admin",
+       "password": "password123"
+     }
+   - Kết quả: Copy chuỗi "token" trong phần "data" để dùng cho các API sau.
+
+2. API Đăng ký định danh (eKYC) - CẦN TOKEN
+   - URL: http://localhost:9090/api/v1/auth/ekyc
+   - Method: POST
+   - Tab Auth: Chọn "Bearer Token" -> Dán mã Token vừa copy ở trên.
+   - Tab Body -> Chọn "form-data":
+     + Key 1: "id_card" (Kiểu File) -> Chọn ảnh CCCD
+     + Key 2: "selfie" (Kiểu File) -> Chọn ảnh chân dung
+   - Vai trò: Lưu khuôn mặt của nhân viên vào hệ thống.
+
+3. API Điểm danh tại Kiosk (Verify)
+   - URL: http://localhost:9090/api/v1/kiosk/verify
+   - Method: POST
+   - Body (raw - JSON):
+     {
+       "kioskId": "KIOSK-01",
+       "qrToken": "U01BUlRPUFNfVVNFUl8x", // Token lấy từ app Flutter của nhân viên
+       "liveImageBase64": "data:image/jpeg;base64,..." // Ảnh chụp từ camera Kiosk
+     }
+   - Ghi chú: "qrToken" thực chất là chuỗi "SMARTOPS_USER_{id}" được mã hóa Base64.
+     Ví dụ id=1: "SMARTOPS_USER_1" -> Mã hóa Base64 -> "U01BUlRPUFNfVVNFUl8x"
+
+III. CÁC LỖI THƯỜNG GẶP KHI TEST
+--------------------------------------------------------------------------------
+1. Lỗi "Field required":
+   - Nguyên nhân: Chưa chọn đúng kiểu "File" trong tab form-data hoặc sai tên Key.
+   - Khắc phục: Đảm bảo Key là "file" (với AI service) hoặc "selfie"/"id_card" (với Core API).
+
+2. Lỗi "401 Unauthorized":
+   - Nguyên nhân: Chưa gửi kèm Token hoặc Token hết hạn.
+   - Khắc phục: Đăng nhập lại và cập nhật Token mới trong tab Authorization.
+
+3. Lỗi "Connection Refused":
+   - Nguyên nhân: Chưa bật server Python (port 8000) hoặc Java (port 9090).
+   - Khắc phục: Chạy 'python main.py' và 'mvn spring-boot:run'.
+
+================================================================================
