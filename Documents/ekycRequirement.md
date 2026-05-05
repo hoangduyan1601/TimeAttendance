@@ -1,72 +1,71 @@
-# KẾ HOẠCH TRIỂN KHAI HỆ THỐNG ĐỊNH DANH (EKYC) VÀ XÁC THỰC KHUÔN MẶT
+# KẾ HOẠCH CHI TIẾT: HỆ THỐNG ĐỊNH DANH EKYC VÀ CHẤM CÔNG CHỐNG GIAN LẬN
 
 ## 1. Mục tiêu
-Xây dựng quy trình định danh nhân sự khép kín, bảo mật và chính xác bằng công nghệ nhận diện khuôn mặt (Face Recognition). Đảm bảo nhân viên chỉ có thể chấm công khi đã được xác thực danh tính bởi hệ thống và phê duyệt bởi quản trị viên.
+Xây dựng hệ thống định danh và chấm công thông minh, đảm bảo:
+- **Tiện lợi:** Chấm công không tiếp xúc qua QR và Khuôn mặt.
+- **Chính xác:** Xác thực đúng nhân sự đã được phê duyệt.
+- **Bảo mật (Quan trọng):** Ngăn chặn tuyệt đối các hành vi gian lận như sử dụng ảnh chụp, video hoặc màn hình điện thoại của người khác để chấm công hộ (Anti-spoofing).
 
-## 2. Phạm vi giai đoạn 1 (Hiện tại)
-Tạm thời loại bỏ phần chụp và bóc tách dữ liệu CCCD để tập trung tối ưu hóa luồng xác thực khuôn mặt (Face-only eKYC) nhằm đảm bảo tính ổn định của Camera trên đa nền tảng.
+## 2. Phạm vi triển khai
+- **Loại bỏ:** Tạm thời không yêu cầu chụp Căn cước công dân (CCCD) để tối giản quy trình cho nhân viên.
+- **Tập trung:** Hoàn thiện luồng đăng ký khuôn mặt, phê duyệt của Admin và xác thực đa lớp tại Kiosk.
 
 ---
 
 ## 3. Quy trình chi tiết
 
 ### A. Đăng ký khuôn mặt (Phía Nhân viên)
-1. **Thực hiện chụp ảnh:** Nhân viên sử dụng Camera trước trên Mobile/Web để chụp ảnh chân dung (nhìn thẳng).
-2. **Trích xuất đặc trưng (Face Embedding):** 
-   - Ảnh được gửi lên AI Service (DeepFace - Model VGG-Face).
-   - Hệ thống trích xuất ra một Vector 128 (hoặc 4096) chiều đại diện cho khuôn mặt.
-3. **Lưu trữ:** 
-   - Ảnh gốc được lưu tại thư mục `/uploads/ekyc/`.
-   - Face Vector và đường dẫn ảnh được lưu vào bảng `face_data`.
-4. **Trạng thái:** Hồ sơ chuyển sang trạng thái `PENDING` (Chờ phê duyệt).
+1. **Chụp ảnh chân dung:** Nhân viên dùng Camera trước chụp ảnh nhìn thẳng rõ nét.
+2. **Trích xuất Face Vector:** AI Service phân tích ảnh và chuyển đổi khuôn mặt thành dãy số định danh (Vector) duy nhất.
+3. **Lưu trữ:** Dữ liệu ảnh và Vector được lưu trữ bảo mật trên server.
+4. **Trạng thái:** Hồ sơ ở trạng thái `PENDING` và chờ Admin phê duyệt.
 
 ### B. Phê duyệt định danh (Phía Quản trị viên)
-1. **Danh sách chờ:** Admin xem danh sách nhân viên vừa đăng ký định danh.
-2. **Đối soát thủ công:** Admin nhấn "Xem ảnh" để kiểm tra tính hợp lệ của ảnh (rõ nét, đúng người).
-3. **Quyết định:**
-   - **Duyệt (Approve):** Chuyển trạng thái eKYC thành `APPROVED`. Nhân viên chính thức có quyền chấm công.
-   - **Từ chối (Reject):** Chuyển trạng thái thành `REJECTED`. Yêu cầu nhân viên chụp lại.
+1. **Kiểm tra hồ sơ:** Admin truy cập danh sách chờ duyệt, xem ảnh gốc của nhân viên.
+2. **Đối soát:** Xác nhận ảnh rõ nét, không bị che khuất và đúng là nhân sự trong công ty.
+3. **Quyết định:** 
+   - `APPROVED`: Nhân viên bắt đầu được phép chấm công.
+   - `REJECTED`: Từ chối và yêu cầu nhân viên thực hiện lại.
 
-### C. Xác thực chấm công (Quy trình 2 bước tại Kiosk)
-1. **Bước 1: Quét mã QR định danh (Identification):** 
-   - Mỗi nhân viên được cấp một mã QR định danh duy nhất trên ứng dụng di động.
-   - Nhân viên đưa mã QR vào vùng nhận diện của camera Kiosk.
-   - Hệ thống giải mã QR để xác định danh tính nhân viên và truy xuất **Face Vector** gốc tương ứng từ cơ sở dữ liệu.
-2. **Bước 2: Xác thực khuôn mặt (Verification):** 
-   - Ngay sau khi nhận diện được nhân viên qua QR, Kiosk tự động kích hoạt chế độ chụp ảnh khuôn mặt.
-   - Camera chụp ảnh thực tế của người đang đứng trước máy (Live Image).
-3. **So khớp và Đối soát AI:**
-   - Hệ thống AI so sánh ảnh vừa chụp với Face Vector gốc đã lấy được ở Bước 1.
-   - Sử dụng thuật toán **Cosine Similarity** để tính toán tỷ lệ tương đồng.
-4. **Kết quả chấm công:**
-   - **Thành công:** Nếu tỷ lệ khớp đạt ngưỡng an toàn (>= 40%), hệ thống tự động ghi nhận giờ vào/ra ca và hiển thị thông báo chào mừng kèm tên nhân viên.
-   - **Thất bại:** Nếu tỷ lệ khớp thấp hoặc tài khoản chưa được Admin duyệt định danh, hệ thống sẽ từ chối chấm công và hiển thị cảnh báo lỗi chi tiết.
+### C. Quy trình Chấm công 3 lớp (Tại Kiosk)
+Để đảm bảo tính trung thực, quy trình chấm công tại Kiosk được thực hiện qua 3 lớp:
+
+1. **Lớp 1 - Định danh (QR Code):** 
+   - Nhân viên quét mã QR cá nhân trên App.
+   - Hệ thống xác định đây là ai và lấy dữ liệu khuôn mặt gốc để chuẩn bị đối soát.
+2. **Lớp 2 - Xác thực thực thể (Liveness Detection - CHỐNG GIAN LẬN):**
+   - AI quét các đặc điểm sống thực của đối tượng trước camera.
+   - **Mục tiêu:** Phân biệt khuôn mặt thật với:
+     - Ảnh in trên giấy.
+     - Video/Ảnh hiển thị trên màn hình điện thoại/máy tính bảng.
+     - Mặt nạ 3D hoặc các công cụ giả mạo khác.
+   - Nếu phát hiện là vật thể tĩnh hoặc không có đặc điểm sống, hệ thống **từ chối lập tức** và báo lỗi "Phát hiện gian lận".
+3. **Lớp 3 - Đối soát sinh trắc học (Face Matching):**
+   - Chỉ khi vượt qua lớp Liveness, hệ thống mới so sánh ảnh live với Face Vector gốc.
+   - Nếu tỷ lệ khớp >= 40% (ngưỡng an toàn VGG-Face), ghi nhận chấm công thành công.
 
 ---
 
-## 4. Đặc tả kỹ thuật
+## 4. Đặc tả kỹ thuật & Công nghệ
 
 ### Phân hệ AI (Python FastAPI)
-- **Thư viện:** DeepFace, OpenCV, TensorFlow.
-- **Model:** `VGG-Face` (Độ chính xác cao với ảnh từ Webcam/Mobile).
-- **Endpoints:**
-  - `/internal/ai/embed`: Trích xuất Vector từ ảnh.
-  - `/internal/ai/compare`: So sánh ảnh trực tiếp với Vector lưu sẵn.
+- **Model chính:** `VGG-Face` (DeepFace).
+- **Liveness Detection:** 
+  - Sử dụng các kỹ thuật như: Phân tích tần suất (Frequency Analysis), Kiểm tra độ sâu (Depth Map/Texture analysis) hoặc yêu cầu hành động ngẫu nhiên (chớp mắt, quay đầu nhẹ).
+- **Anti-Spoofing:** Tích hợp các bộ lọc để nhận diện ánh sáng phản chiếu từ màn hình điện thoại hoặc vân giấy in.
 
 ### Phân hệ Backend (Java Spring Boot)
-- **Dữ liệu:** Quản lý bảng `users` (trạng thái ekyc) và `face_data` (vector, url ảnh).
-- **Bảo mật:** 
-  - Cấu hình Resource Handler cho phép truy cập ảnh định danh qua URL bảo mật.
-  - Tích hợp điều kiện `ekyc_status == 'APPROVED'` vào logic chấm công.
+- **Security:** Chặn mọi yêu cầu chấm công nếu tài khoản chưa ở trạng thái `APPROVED`.
+- **Logic:** Xử lý tuần tự QR -> Liveness -> Matching. Chỉ lưu log khi cả 3 bước thành công.
 
 ### Phân hệ Frontend (Flutter)
-- **Giao diện chụp ảnh:** Tối ưu hóa 1 bước chụp để tránh treo camera.
-- **Theo dõi trạng thái:** Hiển thị Dashboard định danh cho nhân viên (Chờ duyệt/Thành công/Từ chối).
-- **Kiosk UI:** Hiển thị độ khớp (%) và phản hồi real-time từ AI.
+- **Kiosk UI:** Hiển thị khung quét xanh/đỏ dựa trên kết quả liveness.
+- **Employee App:** Dashboard theo dõi trạng thái "Đang chờ duyệt", "Đã duyệt" hoặc "Bị từ chối".
 
 ---
 
-## 5. Lộ trình phát triển tiếp theo (Giai đoạn 2)
-1. **Liveness Detection:** Thêm các yêu cầu như chớp mắt, mỉm cười hoặc quay đầu để chống giả mạo bằng ảnh tĩnh.
-2. **Tích hợp OCR CCCD:** Chụp mặt trước/sau CCCD, tự động trích xuất thông tin và so khớp khuôn mặt trên CCCD với ảnh Selfie.
-3. **Cảnh báo Admin:** Tự động gửi thông báo khi có yêu cầu eKYC mới hoặc khi có người cố tình chấm công sai khuôn mặt nhiều lần.
+## 5. Lịch trình phát triển
+1. **Tuần 1:** Hoàn thiện luồng Đăng ký và Phê duyệt Admin (Sửa lỗi 403 hiện tại).
+2. **Tuần 2:** Tích hợp thư viện Liveness Detection vào AI Service.
+3. **Tuần 3:** Cấu hình Kiosk thực hiện quét 2 bước (QR trước - Mặt sau).
+4. **Tuần 4:** Kiểm thử khả năng chống gian lận với nhiều loại ảnh và màn hình khác nhau.

@@ -7,3 +7,4 @@ deepface
 tf-keras
 pydantic
 scipy
+mediapipe==0.10.14

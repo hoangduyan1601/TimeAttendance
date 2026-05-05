@@ -10,7 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import java.util.Optional;
 
-//@Component
+@Component
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
@@ -38,14 +38,14 @@ public class DataInitializer implements CommandLineRunner {
         
         if (existingAdmin.isPresent()) {
             admin = existingAdmin.get();
-            admin.setPassword(passwordEncoder.encode("123456"));
-            admin.setRole("ADMIN"); // Đảm bảo đúng quyền
+            admin.setPassword("123456");
+            admin.setRole("ADMIN"); 
             admin.setStatus("ACTIVE");
             System.out.println(">>> Đã CẬP NHẬT mật khẩu Admin thành: 123456");
         } else {
             admin = User.builder()
                     .username("admin")
-                    .password(passwordEncoder.encode("123456"))
+                    .password("123456")
                     .fullName("System Administrator")
                     .email("admin@smartops.com")
                     .role("ADMIN")
@@ -63,19 +63,19 @@ public class DataInitializer implements CommandLineRunner {
         Optional<User> existingAnque = userRepository.findByUsername("anque");
         if (existingAnque.isPresent()) {
             User anque = existingAnque.get();
-            anque.setPassword(passwordEncoder.encode("123456"));
+            anque.setPassword("123456");
             userRepository.save(anque);
             System.out.println(">>> Đã CẬP NHẬT mật khẩu cho 'anque' thành: 123456");
         } else {
             User anque = User.builder()
                     .username("anque")
-                    .password(passwordEncoder.encode("123456"))
+                    .password("123456")
                     .fullName("An Quế")
                     .email("anque@smartops.com")
                     .role("EMPLOYEE")
                     .employeeCode("NV-ANQUE")
                     .status("ACTIVE")
-                    .ekycStatus("PENDING")
+                    .ekycStatus("NOT_STARTED")
                     .department(dept)
                     .build();
             userRepository.save(anque);

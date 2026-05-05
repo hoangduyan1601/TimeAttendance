@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:camera/camera.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:smartops_app/core/theme.dart';
@@ -138,8 +139,19 @@ class _EkycScreenState extends State<EkycScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
+        String message = 'Đăng ký thất bại';
+        if (e is DioException && e.response?.data != null) {
+          final data = e.response!.data;
+          if (data is Map && data['message'] != null) {
+            message = data['message'].toString();
+          } else {
+            message = data.toString();
+          }
+        } else {
+          message = 'Đăng ký thất bại: $e';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đăng ký thất bại: $e', style: GoogleFonts.montserrat()), backgroundColor: AppTheme.error),
+          SnackBar(content: Text(message, style: GoogleFonts.montserrat()), backgroundColor: AppTheme.error),
         );
       }
     }
@@ -317,9 +329,10 @@ class _EkycScreenState extends State<EkycScreen> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                           child: Image.network(
-                            "http://localhost:8081/api/v1" + _savedSelfieUrl!,
+                            "http://localhost:9090/api/v1" + _savedSelfieUrl!,
                             height: 180,
                             width: 135,
+
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Container(
                               height: 180,

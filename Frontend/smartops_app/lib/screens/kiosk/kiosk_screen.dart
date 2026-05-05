@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:camera/camera.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,8 @@ import 'package:smartops_app/services/api_service.dart';
 import 'package:smartops_app/widgets/responsive_layout.dart';
 
 enum KioskState { idle, scanning, processing, success, failure }
+
+enum LivenessChallenge { turnLeft, turnRight, blink }
 
 class KioskScreen extends StatefulWidget {
   const KioskScreen({super.key});
@@ -28,13 +31,19 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   String? _currentQrToken;
   String _statusMessage = "READY TO SCAN";
   double _similarityScore = 0.0;
+
+  CameraController? _faceCameraController;
+  bool _isFaceCameraReady = false;
+  bool _isCapturingChallenge = false;
+  LivenessChallenge? _challenge;
   
   late AnimationController _scanAnimationController;
   late Animation<double> _scanAnimation;
 
   final MobileScannerController _scannerController = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
-    facing: CameraFacing.front,
+    // Dùng camera sau để quét QR ổn định hơn
+    facing: CameraFacing.back,
     returnImage: true,
   );
 
@@ -51,31 +60,45 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
       final String qrToken = barcodes.first.rawValue!;
-      final Uint8List? image = capture.image;
-      _processIdentification(qrToken, image);
+      _processIdentification(qrToken);
     }
   }
 
-  void _processIdentification(String qrToken, Uint8List? image) async {
+  Future<void> _processIdentification(String qrToken) async {
     setState(() {
       _currentState = KioskState.scanning;
-      _statusMessage = "IDENTIFYING...";
+      _statusMessage = "QR RECOGNIZED";
     });
 
     try {
-      // Step 1: Resolve QR
+      // Step 1: Resolve QR (Identification)
       final resolveResponse = await _apiService.resolveQr(qrToken);
       if (mounted) {
         setState(() {
           _identifiedUser = resolveResponse['data'];
           _currentQrToken = qrToken;
-          _statusMessage = "VERIFYING BIOMETRICS...";
+          _challenge = _pickChallenge();
+          _statusMessage = _challengeLabel(_challenge!);
           _currentState = KioskState.processing;
         });
 
-        // Step 2: Verify Face
-        String base64Image = (image != null && image.isNotEmpty) ? base64Encode(image) : "";
-        final verifyResponse = await _apiService.verifyKiosk("KIOSK-GATE-01", qrToken, base64Image);
+        // Stop QR scanner to free camera resources
+        await _scannerController.stop();
+
+        // Step 2: Init front camera for face capture
+        await _initializeFaceCamera();
+
+        // Step 2: Challenge–response capture (burst frames)
+        final frames = await _captureChallengeFrames(durationMs: 1600, targetFps: 6);
+        final base64Image = frames.isNotEmpty ? frames.last : "";
+
+        final verifyResponse = await _apiService.verifyKiosk(
+          "KIOSK-GATE-01",
+          qrToken,
+          base64Image,
+          framesBase64: frames,
+          challengeType: _challengeToApi(_challenge!),
+        );
         
         if (mounted) {
           final data = verifyResponse['data'];
@@ -99,8 +122,15 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
     } catch (e) {
       if (mounted) {
         String errorMessage = "ACCESS DENIED";
+        bool isFraud = false;
+        
         if (e is DioException && e.response?.data != null) {
           errorMessage = e.response?.data['message'] ?? "ACCESS DENIED";
+          // Check if error message indicates fraud
+          if (errorMessage.contains("gian lận")) {
+            isFraud = true;
+            errorMessage = "FRAUD DETECTED";
+          }
         }
         
         setState(() {
@@ -109,13 +139,138 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
           _liveLogs.insert(0, {
             'name': _identifiedUser?['fullName'] ?? 'UNKNOWN',
             'time': DateFormat('HH:mm:ss').format(DateTime.now()),
-            'status': 'REJECTED',
+            'status': isFraud ? 'FRAUD ALERT' : 'REJECTED',
             'score': 0.0,
             'isSuccess': false,
           });
         });
         _resetAfterDelay();
       }
+    }
+  }
+
+  Future<void> _initializeFaceCamera() async {
+    try {
+      setState(() {
+        _isFaceCameraReady = false;
+      });
+
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        throw Exception("Không tìm thấy camera trên thiết bị");
+      }
+
+      final CameraDescription description = cameras.firstWhere(
+        (cam) => cam.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      if (_faceCameraController != null) {
+        await _faceCameraController!.dispose();
+      }
+
+      _faceCameraController = CameraController(
+        description,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      await _faceCameraController!.initialize();
+      if (!mounted) return;
+      setState(() {
+        _isFaceCameraReady = true;
+      });
+    } catch (e) {
+      throw Exception("Không thể khởi tạo camera khuôn mặt: $e");
+    }
+  }
+
+  LivenessChallenge _pickChallenge() {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final idx = now % 3;
+    if (idx == 0) return LivenessChallenge.turnLeft;
+    if (idx == 1) return LivenessChallenge.turnRight;
+    return LivenessChallenge.blink;
+  }
+
+  String _challengeToApi(LivenessChallenge c) {
+    switch (c) {
+      case LivenessChallenge.turnLeft:
+        return "TURN_LEFT";
+      case LivenessChallenge.turnRight:
+        return "TURN_RIGHT";
+      case LivenessChallenge.blink:
+        return "BLINK";
+    }
+  }
+
+  String _challengeLabel(LivenessChallenge c) {
+    switch (c) {
+      case LivenessChallenge.turnLeft:
+        return "TURN LEFT";
+      case LivenessChallenge.turnRight:
+        return "TURN RIGHT";
+      case LivenessChallenge.blink:
+        return "BLINK";
+    }
+  }
+
+  Future<List<String>> _captureChallengeFrames({
+    required int durationMs,
+    required int targetFps,
+  }) async {
+    if (_faceCameraController == null || !_isFaceCameraReady) {
+      throw Exception("Camera khuôn mặt chưa sẵn sàng");
+    }
+    if (_isCapturingChallenge) return [];
+
+    final List<String> frames = [];
+    final int intervalMs = (1000 / targetFps).round();
+    final int maxFrames = (durationMs / intervalMs).ceil();
+
+    setState(() {
+      _isCapturingChallenge = true;
+    });
+
+    try {
+      for (int i = 0; i < maxFrames; i++) {
+        if (!mounted) break;
+        final XFile photo = await _faceCameraController!.takePicture();
+        final Uint8List bytes = await photo.readAsBytes();
+        if (bytes.isNotEmpty) {
+          frames.add(base64Encode(bytes));
+        }
+        await Future.delayed(Duration(milliseconds: intervalMs));
+      }
+
+      if (frames.length < 3) {
+        throw Exception("Không đủ dữ liệu camera để xác thực liveness");
+      }
+
+      return frames;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCapturingChallenge = false;
+        });
+      }
+    }
+  }
+
+  Future<String> _captureFaceBase64() async {
+    if (_faceCameraController == null || !_isFaceCameraReady) {
+      throw Exception("Camera khuôn mặt chưa sẵn sàng");
+    }
+    try {
+      final XFile photo = await _faceCameraController!.takePicture();
+      final Uint8List bytes = await photo.readAsBytes();
+      if (bytes.isEmpty) {
+        throw Exception("Không nhận được ảnh từ camera");
+      }
+      return base64Encode(bytes);
+    } catch (e) {
+      throw Exception("Chụp ảnh khuôn mặt thất bại: $e");
     }
   }
 
@@ -128,7 +283,15 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
           _currentQrToken = null;
           _statusMessage = "READY TO SCAN";
           _similarityScore = 0.0;
+          _isFaceCameraReady = false;
+          _isCapturingChallenge = false;
+          _challenge = null;
         });
+
+        // Cleanup face camera and restart QR scanner
+        _faceCameraController?.dispose();
+        _faceCameraController = null;
+        _scannerController.start();
       }
     });
   }
@@ -137,6 +300,7 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   void dispose() {
     _scannerController.dispose();
     _scanAnimationController.dispose();
+    _faceCameraController?.dispose();
     super.dispose();
   }
 
@@ -183,14 +347,20 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   Widget _buildCameraArea() {
     return Stack(
       children: [
-        // Camera View
+        // Camera View (QR scan OR Face capture)
         Positioned.fill(
           child: Opacity(
             opacity: 0.8,
-            child: MobileScanner(
-              controller: _scannerController,
-              onDetect: _onDetect,
-            ),
+            child: _currentState == KioskState.processing
+                ? (_isFaceCameraReady && _faceCameraController != null
+                    ? CameraPreview(_faceCameraController!)
+                    : const Center(
+                        child: CircularProgressIndicator(color: AppTheme.info),
+                      ))
+                : MobileScanner(
+                    controller: _scannerController,
+                    onDetect: _onDetect,
+                  ),
           ),
         ),
         
@@ -459,6 +629,19 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
                 )),
             ],
           ),
+          if (_currentState == KioskState.processing && _challenge != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('CHALLENGE', style: GoogleFonts.shareTechMono(color: Colors.white38, fontSize: 10)),
+                Text(
+                  _challengeLabel(_challenge!),
+                  style: GoogleFonts.shareTechMono(color: AppTheme.info, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           LinearProgressIndicator(
             value: _currentState == KioskState.processing ? null : 1.0,

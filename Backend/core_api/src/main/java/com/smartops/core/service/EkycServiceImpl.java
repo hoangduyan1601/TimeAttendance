@@ -3,8 +3,10 @@ package com.smartops.core.service;
 import com.smartops.core.dto.AiVectorResponse;
 import com.smartops.core.dto.EkycAiResponse;
 import com.smartops.core.entity.FaceData;
+import com.smartops.core.entity.Notification;
 import com.smartops.core.entity.User;
 import com.smartops.core.repository.FaceDataRepository;
+import com.smartops.core.repository.NotificationRepository;
 import com.smartops.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,7 @@ public class EkycServiceImpl implements EkycService {
 
     private final UserRepository userRepository;
     private final FaceDataRepository faceDataRepository;
+    private final NotificationRepository notificationRepository;
     private final WebClient webClient;
 
     @Value("${upload.path}")
@@ -45,31 +48,64 @@ public class EkycServiceImpl implements EkycService {
 
     @Override
     @Transactional
+    public void registerEkyc(Long userId, MultipartFile selfieImage) {
+        registerEkyc(userId, null, selfieImage);
+    }
+
+    @Override
+    @Transactional
     public void registerEkyc(Long userId, MultipartFile idCardImage, MultipartFile selfieImage) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Nhân sự không tồn tại"));
 
         // 1. Lưu ảnh cục bộ
-        String idCardFileName = saveFile(idCardImage, "IDCARD_" + userId);
-        String selfieFileName = saveFile(selfieImage, "SELFIE_" + userId);
+        String selfieFileName = saveFile(selfieImage, "FACE_" + userId);
+        String idCardFileName = null;
+        if (idCardImage != null && !idCardImage.isEmpty()) {
+            idCardFileName = saveFile(idCardImage, "ID_" + userId);
+        }
 
-        // 2. Gọi AI Service để verify eKYC (So khớp ảnh và OCR)
-        EkycAiResponse aiResponse = callAiServiceToVerifyEkyc(idCardImage, selfieImage);
+        // 2. Gọi AI Service
+        double[] faceVector;
+        Double ekycSimilarity = null;
+        String idNumber = null;
+        String fullNameOnId = null;
+
+        if (idCardImage != null && !idCardImage.isEmpty()) {
+            // Luồng eKYC nâng cao: so khớp CCCD vs selfie và lấy vector từ selfie
+            EkycAiResponse verify = callAiServiceToVerifyEkyc(idCardImage, selfieImage);
+            ekycSimilarity = verify.getSimilarity();
+            faceVector = verify.getVector();
+
+            if (verify.getOcrData() != null) {
+                Object idNum = verify.getOcrData().get("idNumber");
+                Object name = verify.getOcrData().get("fullName");
+                idNumber = idNum != null ? idNum.toString() : null;
+                fullNameOnId = name != null ? name.toString() : null;
+            }
+        } else {
+            // Luồng selfie-only: chỉ trích vector
+            faceVector = callAiServiceToExtractVector(selfieImage);
+        }
 
         // 3. Lưu FaceData
         FaceData faceData = faceDataRepository.findByUserId(userId)
                 .orElse(FaceData.builder().user(user).build());
 
-        faceData.setFaceVector(aiResponse.getVector());
-        faceData.setIdCardUrl("/uploads/ekyc/" + idCardFileName);
+        faceData.setFaceVector(faceVector);
         faceData.setSelfieUrl("/uploads/ekyc/" + selfieFileName);
-        faceData.setEkycSimilarity(aiResponse.getSimilarity());
-        
-        if (aiResponse.getOcrData() != null) {
-            faceData.setIdNumber((String) aiResponse.getOcrData().get("idNumber"));
-            faceData.setFullNameOnId((String) aiResponse.getOcrData().get("fullName"));
+        if (idCardFileName != null) {
+            faceData.setIdCardUrl("/uploads/ekyc/" + idCardFileName);
         }
-        
+        if (ekycSimilarity != null) {
+            faceData.setEkycSimilarity(ekycSimilarity);
+        }
+        if (idNumber != null) {
+            faceData.setIdNumber(idNumber);
+        }
+        if (fullNameOnId != null) {
+            faceData.setFullNameOnId(fullNameOnId);
+        }
         faceData.setLastUpdated(LocalDateTime.now());
         faceDataRepository.save(faceData);
 
@@ -77,8 +113,15 @@ public class EkycServiceImpl implements EkycService {
         user.setEkycStatus("PENDING");
         userRepository.save(user);
 
-        log.info("Đã đăng ký eKYC thành công cho User ID: {}. Độ khớp: {}%. Chờ duyệt.", 
-                userId, Math.round(aiResponse.getSimilarity() * 100));
+        // 5. Tạo thông báo cho Admin
+        notificationRepository.save(Notification.builder()
+                .title("Yêu cầu phê duyệt eKYC mới")
+                .message("Nhân viên " + user.getFullName() + " (" + user.getEmployeeCode() + ") vừa gửi yêu cầu định danh eKYC.")
+                .type("SYSTEM")
+                .isRead(false)
+                .build());
+
+        log.info("Đã đăng ký khuôn mặt thành công cho User ID: {}. Chờ duyệt.", userId);
     }
 
     private String saveFile(MultipartFile file, String prefix) {
@@ -127,7 +170,10 @@ public class EkycServiceImpl implements EkycService {
     private double[] callAiServiceToExtractVector(MultipartFile file) {
         try {
             MultipartBodyBuilder builder = new MultipartBodyBuilder();
-            builder.part("file", file.getResource());
+            // Đảm bảo truyền đủ Filename và Content-Type cho AI Service
+            builder.part("file", file.getResource())
+                   .filename(file.getOriginalFilename())
+                   .contentType(MediaType.parseMediaType(file.getContentType() != null ? file.getContentType() : "image/jpeg"));
 
             AiVectorResponse response = webClient.post()
                     .uri(aiServiceUrl + "/internal/ai/embed")

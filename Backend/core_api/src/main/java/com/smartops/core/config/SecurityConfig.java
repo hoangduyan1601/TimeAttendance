@@ -39,9 +39,9 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(java.util.List.of("*")); // Cho phép tất cả các nguồn
+        configuration.setAllowedOrigins(java.util.List.of("*"));
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Requested-With", "Accept"));
         configuration.setExposedHeaders(java.util.List.of("Authorization"));
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -52,16 +52,18 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
-            .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Sử dụng cấu hình trên
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/health", "/h2-console/**", "/uploads/**", "/api/v1/uploads/**").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/kiosk/**").permitAll()
                 .requestMatchers("/api/v1/admin/reports/export").permitAll()
-                .requestMatchers("/api/v1/admin/reports/summary/export").permitAll() // Sửa đúng URL export
-                .requestMatchers("/api/v1/employee/**").hasRole("EMPLOYEE")
-                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN") // Chỉ ADMIN
+                .requestMatchers("/api/v1/admin/reports/summary/export").permitAll()
+                .requestMatchers("/api/v1/employee/ekyc").authenticated() // Chỉ cần đăng nhập là được
+                .requestMatchers("/api/v1/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")
+                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

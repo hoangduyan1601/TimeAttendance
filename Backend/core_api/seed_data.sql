@@ -35,14 +35,14 @@ ON CONFLICT DO NOTHING;
 INSERT INTO users (full_name, username, employee_code, email, phone_number, password, role, status, ekyc_status, department_id, assigned_shift_id, created_at) VALUES
 ('Nguyễn Văn Quản Trị', 'admin', 'ADM001', 'admin@smartops.com', '0901234567', '123456', 'ADMIN', 'ACTIVE', 'APPROVED', 1, 1, '2023-12-01 08:00:00'),
 ('Trần Thị Nhân Sự', 'hr_manager', 'HR001', 'hr@smartops.com', '0901234568', '123456', 'ADMIN', 'ACTIVE', 'APPROVED', 2, 1, '2023-12-05 08:00:00'),
-('Lê Hoàng Nam', 'nam.lh', 'IT001', 'nam.lh@smartops.com', '0901234569', '123456', 'EMPLOYEE', 'ACTIVE', 'APPROVED', 3, 1, '2024-01-10 09:00:00'),
-('Phạm Minh Đức', 'duc.pm', 'IT002', 'duc.pm@smartops.com', '0901234570', '123456', 'EMPLOYEE', 'ACTIVE', 'APPROVED', 3, 1, '2024-01-15 09:00:00'),
-('Hoàng Thùy Linh', 'linh.ht', 'SAL001', 'linh.ht@smartops.com', '0901234571', '123456', 'EMPLOYEE', 'ACTIVE', 'APPROVED', 4, 1, '2024-02-01 08:30:00'),
-('Vũ Văn Hùng', 'hung.vv', 'PRO001', 'hung.vv@smartops.com', '0901234572', '123456', 'EMPLOYEE', 'ACTIVE', 'APPROVED', 6, 2, '2024-03-01 06:00:00'),
-('Đặng Thu Thảo', 'thao.dt', 'ACC001', 'thao.dt@smartops.com', '0901234573', '123456', 'EMPLOYEE', 'ACTIVE', 'APPROVED', 5, 1, '2024-04-15 08:00:00'),
-('Bùi Anh Tuấn', 'tuan.ba', 'PRO002', 'tuan.ba@smartops.com', '0901234574', '123456', 'EMPLOYEE', 'ACTIVE', 'PENDING', 6, 2, '2025-01-10 06:00:00'),
-('Nguyễn Mai Phương', 'phuong.nm', 'SAL002', 'phuong.nm@smartops.com', '0901234575', '123456', 'EMPLOYEE', 'ACTIVE', 'APPROVED', 4, 1, '2025-02-20 08:30:00'),
-('Đỗ Hùng Dũng', 'dung.dh', 'IT003', 'dung.dh@smartops.com', '0901234576', '123456', 'EMPLOYEE', 'ACTIVE', 'APPROVED', 3, 1, '2025-03-01 09:00:00')
+('Lê Hoàng Nam', 'nam.lh', 'IT001', 'nam.lh@smartops.com', '0901234569', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 3, 1, '2024-01-10 09:00:00'),
+('Phạm Minh Đức', 'duc.pm', 'IT002', 'duc.pm@smartops.com', '0901234570', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 3, 1, '2024-01-15 09:00:00'),
+('Hoàng Thùy Linh', 'linh.ht', 'SAL001', 'linh.ht@smartops.com', '0901234571', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 4, 1, '2024-02-01 08:30:00'),
+('Vũ Văn Hùng', 'hung.vv', 'PRO001', 'hung.vv@smartops.com', '0901234572', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 6, 2, '2024-03-01 06:00:00'),
+('Đặng Thu Thảo', 'thao.dt', 'ACC001', 'thao.dt@smartops.com', '0901234573', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 5, 1, '2024-04-15 08:00:00'),
+('Bùi Anh Tuấn', 'tuan.ba', 'PRO002', 'tuan.ba@smartops.com', '0901234574', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 6, 2, '2025-01-10 06:00:00'),
+('Nguyễn Mai Phương', 'phuong.nm', 'SAL002', 'phuong.nm@smartops.com', '0901234575', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 4, 1, '2025-02-20 08:30:00'),
+('Đỗ Hùng Dũng', 'dung.dh', 'IT003', 'dung.dh@smartops.com', '0901234576', '123456', 'EMPLOYEE', 'ACTIVE', 'NOT_STARTED', 3, 1, '2025-03-01 09:00:00')
 ON CONFLICT (username) DO NOTHING;
 
 -- 5. HISTORICAL ATTENDANCE LOGS (Past years - Random sampling)
