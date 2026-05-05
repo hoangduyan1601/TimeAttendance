@@ -16,5 +16,10 @@ public class AiCompareResponse {
     @JsonProperty("isMatch")
     private boolean isMatch;   // AI đánh giá là trùng khớp hay không
     
+    @JsonProperty("isLive")
+    private boolean isLive;    // Xác thực là người thật hay không
+    
+    private double livenessScore;
+    
     private String message;
 }

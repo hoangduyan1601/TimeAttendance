@@ -50,6 +50,6 @@ admin:
 upload:
   path: uploads/ekyc
 ai-service:
-  url: http://localhost:8000 # URL của Python FastAPI
+  url: http://localhost:8080 # URL của Python FastAPI
   extract-endpoint: /internal/ai/embed
   compare-endpoint: /internal/ai/compare

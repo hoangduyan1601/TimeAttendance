@@ -62,7 +62,7 @@ public class UserServiceImpl implements UserService {
                 .employeeCode(employeeCode)
                 .department(department)
                 .assignedShift(shift)
-                .ekycStatus("PENDING")
+                .ekycStatus("NOT_STARTED")
                 .status("ACTIVE")
                 .build();
 

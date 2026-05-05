@@ -50,24 +50,42 @@ class ApiService {
       rethrow;
     }
   }
-Future<Map<String, dynamic>> registerEkyc(Uint8List selfie) async {
-  try {
-    final options = await _getOptions();
+  Future<Map<String, dynamic>> registerEkyc(
+    Uint8List selfie, {
+    Uint8List? idCard,
+  }) async {
+    try {
+      final token = await getToken();
+      
+      final formData = FormData.fromMap({
+        if (idCard != null)
+          'idCard': MultipartFile.fromBytes(
+            idCard,
+            filename: 'idcard.jpg',
+            contentType: DioMediaType('image', 'jpeg'),
+          ),
+        'selfie': MultipartFile.fromBytes(
+          selfie, 
+          filename: 'selfie.jpg',
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+      });
 
-    final formData = FormData.fromMap({
-      'selfie': MultipartFile.fromBytes(selfie, filename: 'selfie.jpg'),
-    });
-
-    final response = await _dio.post(
-      '${ApiConstants.baseUrl}/auth/ekyc',
-      data: formData,
-      options: options,
-    );
-    return response.data;
-  } catch (e) {
-    rethrow;
+      final response = await _dio.post(
+        ApiConstants.ekyc,
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+          // Gỡ bỏ contentType cứng để Dio tự sinh Boundary
+        ),
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
   }
-}
 
 
   // QR Code
@@ -82,7 +100,13 @@ Future<Map<String, dynamic>> registerEkyc(Uint8List selfie) async {
   }
 
   // Kiosk Verify
-  Future<Map<String, dynamic>> verifyKiosk(String kioskId, String qrToken, String base64Image) async {
+  Future<Map<String, dynamic>> verifyKiosk(
+    String kioskId,
+    String qrToken,
+    String base64Image, {
+    List<String>? framesBase64,
+    String? challengeType,
+  }) async {
     try {
       final response = await _dio.post(
         ApiConstants.kioskVerify,
@@ -90,6 +114,8 @@ Future<Map<String, dynamic>> registerEkyc(Uint8List selfie) async {
           'kioskId': kioskId,
           'qrToken': qrToken,
           'liveImageBase64': base64Image,
+          if (framesBase64 != null) 'framesBase64': framesBase64,
+          if (challengeType != null) 'challengeType': challengeType,
         },
       );
       return response.data;

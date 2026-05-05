@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartops_app/core/routes.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/services/api_service.dart';
@@ -59,36 +60,46 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         end = start;
       }
 
+      // Helper function to call API safely
+      Future<Map<String, dynamic>?> safeCall(Future<Map<String, dynamic>> call, String label) async {
+        try {
+          return await call;
+        } catch (e) {
+          debugPrint("Error fetching $label: $e");
+          return null;
+        }
+      }
+
       final results = await Future.wait([
-        _apiService.getAdminStats(),
-        _apiService.getLiveLogs(),
-        _apiService.getPendingEkyc(),
-        _apiService.getAllUsers(),
-        _apiService.getAllLeaves(),
-        _apiService.getDepartments(),
-        _apiService.getAttendanceReports(start, end),
-        _apiService.getAllShifts(),
-        _apiService.getAllShiftChangeRequests(),
-        _apiService.getAllOvertimeRequests(),
+        safeCall(_apiService.getAdminStats(), "Stats"),
+        safeCall(_apiService.getLiveLogs(), "LiveLogs"),
+        safeCall(_apiService.getPendingEkyc(), "PendingEkyc"),
+        safeCall(_apiService.getAllUsers(), "Users"),
+        safeCall(_apiService.getAllLeaves(), "Leaves"),
+        safeCall(_apiService.getDepartments(), "Departments"),
+        safeCall(_apiService.getAttendanceReports(start, end), "Attendance"),
+        safeCall(_apiService.getAllShifts(), "Shifts"),
+        safeCall(_apiService.getAllShiftChangeRequests(), "ShiftChanges"),
+        safeCall(_apiService.getAllOvertimeRequests(), "Overtime"),
       ]);
 
       if (mounted) {
         setState(() {
-          _stats = results[0]['data'];
-          _liveLogs = results[1]['data'] ?? [];
-          _pendingEkyc = results[2]['data'] ?? [];
-          _allUsers = results[3]['data'] ?? [];
-          _allLeaves = results[4]['data'] ?? [];
-          _departments = results[5]['data'] ?? [];
-          _attendanceReports = results[6]['data'] ?? [];
-          _allShifts = results[7]['data'] ?? [];
-          _allShiftChangeRequests = results[8]['data'] ?? [];
-          _allOvertimeRequests = results[9]['data'] ?? [];
+          if (results[0] != null) _stats = results[0]!['data'];
+          if (results[1] != null) _liveLogs = results[1]!['data'] ?? [];
+          if (results[2] != null) _pendingEkyc = results[2]!['data'] ?? [];
+          if (results[3] != null) _allUsers = results[3]!['data'] ?? [];
+          if (results[4] != null) _allLeaves = results[4]!['data'] ?? [];
+          if (results[5] != null) _departments = results[5]!['data'] ?? [];
+          if (results[6] != null) _attendanceReports = results[6]!['data'] ?? [];
+          if (results[7] != null) _allShifts = results[7]!['data'] ?? [];
+          if (results[8] != null) _allShiftChangeRequests = results[8]!['data'] ?? [];
+          if (results[9] != null) _allOvertimeRequests = results[9]!['data'] ?? [];
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint("Error fetching data: $e");
+      debugPrint("Global error fetching data: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -376,7 +387,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(status == 'APPROVED' ? 'Đã duyệt định danh' : 'Đã từ chối định danh'), backgroundColor: AppTheme.success),
         );
-        _fetchData(); // Refresh list
+        // Chờ DB cập nhật xong
+        await Future.delayed(const Duration(milliseconds: 500));
+        _fetchData(); 
       }
     } catch (e) {
       if (mounted) {
@@ -394,6 +407,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(status == 'APPROVED' ? 'Đã duyệt đơn nghỉ' : 'Đã từ chối đơn nghỉ'), backgroundColor: AppTheme.success),
         );
+        await Future.delayed(const Duration(milliseconds: 500));
         _fetchData();
       }
     } catch (e) {
@@ -412,6 +426,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(status == 'APPROVED' ? 'Đã duyệt đổi ca' : 'Đã từ chối đổi ca'), backgroundColor: AppTheme.success),
         );
+        await Future.delayed(const Duration(milliseconds: 500));
         _fetchData();
       }
     } catch (e) {
@@ -434,13 +449,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             if (idCardUrl != null) ...[
               const Text("Ảnh CCCD:", style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Image.network("http://127.0.0.1:8081$idCardUrl", height: 200, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50)),
+              Image.network("http://127.0.0.1:9090$idCardUrl", height: 200, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50)),
               const SizedBox(height: 16),
             ],
             if (selfieUrl != null) ...[
               const Text("Ảnh Selfie:", style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Image.network("http://127.0.0.1:8081$selfieUrl", height: 200, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50)),
+              Image.network("http://127.0.0.1:9090$selfieUrl", height: 200, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50)),
             ],
             if (idCardUrl == null && selfieUrl == null) const Text("Không có ảnh đính kèm"),
           ],
@@ -554,7 +569,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Padding(
             padding: const EdgeInsets.all(24),
             child: InkWell(
-              onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+              onTap: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                if (mounted) Navigator.pushReplacementNamed(context, '/login');
+              },
               child: Row(
                 children: [
                   const Icon(Icons.logout_rounded, color: Colors.white70, size: 20),
@@ -1548,7 +1567,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Text(value, style: GoogleFonts.poppins(fontSize: 36, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, style: GoogleFonts.poppins(fontSize: 36, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+          ),
         ],
       ),
     );

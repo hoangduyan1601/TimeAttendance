@@ -16,6 +16,7 @@ import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -61,22 +62,49 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
 
         try {
-            AiCompareRequest aiRequest = AiCompareRequest.builder()
-                    .storedVector(faceData.getFaceVector())
-                    .liveImageBase64(liveImage)
-                    .build();
-            
-            AiCompareResponse aiResponse = webClient.post()
-                    .uri(aiServiceUrl + compareEndpoint)
-                    .bodyValue(aiRequest)
-                    .retrieve()
-                    .bodyToMono(AiCompareResponse.class)
-                    .block();
+            AiCompareResponse aiResponse;
+
+            // Nếu có challenge frames thì dùng endpoint compare-challenge
+            if (request.getFramesBase64() != null && !request.getFramesBase64().isEmpty()
+                    && request.getChallengeType() != null && !request.getChallengeType().isBlank()) {
+
+                Map<String, Object> aiRequest = Map.of(
+                        "storedVector", faceData.getFaceVector(),
+                        "framesBase64", request.getFramesBase64(),
+                        "challengeType", request.getChallengeType()
+                );
+
+                aiResponse = webClient.post()
+                        .uri(aiServiceUrl + "/internal/ai/compare-challenge")
+                        .bodyValue(aiRequest)
+                        .retrieve()
+                        .bodyToMono(AiCompareResponse.class)
+                        .block();
+            } else {
+                AiCompareRequest aiRequest = AiCompareRequest.builder()
+                        .storedVector(faceData.getFaceVector())
+                        .liveImageBase64(liveImage)
+                        .build();
+
+                aiResponse = webClient.post()
+                        .uri(aiServiceUrl + compareEndpoint)
+                        .bodyValue(aiRequest)
+                        .retrieve()
+                        .bodyToMono(AiCompareResponse.class)
+                        .block();
+            }
             
             if (aiResponse != null) {
                 similarity = aiResponse.getSimilarity();
-                isMatch = aiResponse.isMatch(); // Sử dụng isMatch từ AI Service
+                isMatch = aiResponse.isMatch();
+                
+                // KIỂM TRA LIVENESS (CHỐNG GIAN LẬN)
+                if (!aiResponse.isLive()) {
+                    throw new RuntimeException("Phát hiện gian lận! Vui lòng đứng trước camera.");
+                }
             }
+        } catch (RuntimeException e) {
+            throw e; // Ném lại lỗi logic (như gian lận)
         } catch (Exception e) {
             log.error("Lỗi AI Service: {}", e.getMessage());
             throw new RuntimeException("Hệ thống nhận diện khuôn mặt đang gặp sự cố. Thử lại sau.");

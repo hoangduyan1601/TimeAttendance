@@ -3,7 +3,7 @@ class ApiConstants {
   static const String baseUrl = 'http://127.0.0.1:9090/api/v1'; 
   
   static const String login = '$baseUrl/auth/login';
-  static const String ekyc = '$baseUrl/auth/ekyc';
+  static const String ekyc = '$baseUrl/employee/ekyc';
   static const String qrCode = '$baseUrl/auth/qr-code';
   static const String attendance = '$baseUrl/employee/attendance';
   static const String leave = '$baseUrl/employee/leaves';
