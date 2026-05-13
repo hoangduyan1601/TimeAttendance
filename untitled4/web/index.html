@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <title>Flutter Face Detection AI</title>
+
+  <!-- MediaPipe Tasks Vision SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3" type="text/javascript"></script>
+
+  <!-- Tesseract.js for OCR -->
+  <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+
+  <script type="module">
+    import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+
+    let faceDetector;
+    let runningMode = "VIDEO";
+
+    // Khởi tạo AI Model
+    async function initializeFaceDetector() {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+      );
+      faceDetector = await FaceDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite`,
+          delegate: "GPU"
+        },
+        runningMode: runningMode
+      });
+      console.log("MediaPipe Face Detector Loaded!");
+    }
+
+    initializeFaceDetector();
+
+    // Hàm global để Flutter gọi
+    window.detectFaces = async function(videoElement) {
+      if (!faceDetector) return [];
+
+      const detections = faceDetector.detectForVideo(videoElement, performance.now()).detections;
+
+      // Chuyển đổi dữ liệu sang dạng đơn giản cho Flutter
+      return detections.map(d => {
+        return {
+          x: d.boundingBox.originX / videoElement.videoWidth,
+          y: d.boundingBox.originY / videoElement.videoHeight,
+          w: d.boundingBox.width / videoElement.videoWidth,
+          h: d.boundingBox.height / videoElement.videoHeight
+        };
+      });
+    };
+
+    // Hàm OCR sử dụng Tesseract.js với xử lý Worker tối ưu
+    window.performOCR = async function(base64Image) {
+      console.log("OCR: Starting recognition...");
+      try {
+        // Khởi tạo worker với ngôn ngữ Tiếng Việt và Tiếng Anh
+        // Lưu ý: Tesseract sẽ tải dữ liệu ngôn ngữ từ CDN nếu chưa có
+        const worker = await Tesseract.createWorker('vie+eng', 1, {
+          logger: m => console.log("OCR Progress:", m), // Theo dõi tiến trình
+        });
+
+        const { data: { text } } = await worker.recognize(base64Image);
+        console.log("OCR: Recognition finished.");
+
+        await worker.terminate();
+        return text;
+      } catch (e) {
+        console.error("OCR JavaScript Error:", e);
+        return "Error: " + e.toString();
+      }
+    };
+  </script>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
