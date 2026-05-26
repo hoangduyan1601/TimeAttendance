@@ -155,8 +155,17 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .build();
         } else {
             // Đã có bản ghi -> Cập nhật CHECK-OUT vào bản ghi cuối cùng của ngày
-            attendanceType = "TAN CA";
             attendanceLog = logsToday.get(logsToday.size() - 1);
+
+            // KIỂM TRA KHOẢNG CÁCH THỜI GIAN (Tránh quét nhầm)
+            long minutesSinceCheckIn = java.time.Duration.between(attendanceLog.getCheckInTime(), now).toMinutes();
+            if (minutesSinceCheckIn < 30) {
+                throw new RuntimeException("Bạn vừa mới chấm công VÀO CA lúc " + 
+                    attendanceLog.getCheckInTime().format(DateTimeFormatter.ofPattern("HH:mm")) + 
+                    ". Vui lòng đợi thêm " + (30 - minutesSinceCheckIn) + " phút để chấm công TAN CA.");
+            }
+            
+            attendanceType = "TAN CA";
             
             LocalDateTime checkOutTime = now;
             ShiftConfig shift = attendanceLog.getShift();

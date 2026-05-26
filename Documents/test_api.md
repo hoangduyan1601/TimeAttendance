@@ -76,7 +76,7 @@ if (jsonData.status === "SUCCESS") {
 | Chức năng | Method | Endpoint | Body (JSON) |
 | :--- | :--- | :--- | :--- |
 | **Giải mã QR NV** | POST | `/kiosk/resolve-qr` | `{"qrToken": "xyz..."}` |
-| **Chấm công (Verify)**| POST | `/kiosk/verify` | `{"userId": 1, "imageBase64": "data:image/jpeg;base64,...", "location": "Cổng chính"}` |
+| **Chấm công (Verify)**| POST | `/kiosk/verify` | `{"qrToken": "xyz...", "liveImageBase64": "data:image/jpeg;base64,...", "kioskId": "GATE-01"}` |
 | **Nhật ký trực tiếp**| GET | `/kiosk/live-logs` | |
 
 ---

@@ -38,6 +38,10 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   bool _isCapturingChallenge = false;
   LivenessChallenge? _challenge;
   
+  // Countdown state
+  int _countdownValue = 0;
+  bool _isCountingDown = false;
+  
   late AnimationController _scanAnimationController;
   late Animation<double> _scanAnimation;
 
@@ -121,7 +125,7 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
 
       // Dừng và giải phóng bộ quét QR triệt để
       await _scannerController.stop();
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 2)); // Tăng delay lên 2s để giải phóng phần cứng
       
       setState(() {
         _currentState = KioskState.processing;
@@ -135,11 +139,13 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
         throw Exception("Face camera failed to initialize");
       }
 
-      // Step 3: Challenge–response capture (burst frames)
-      final frames = await _captureChallengeFrames(durationMs: 2000, targetFps: 6);
-      if (frames.isEmpty) throw Exception("No frames captured");
+      // Step 3: Countdown and Challenge–response capture
+      await _startChallengeSequence();
       
-      _logSystem("CAPTURED ${frames.length} FRAMES, VERIFYING...");
+      final frames = await _captureChallengeFrames(durationMs: 4000, targetFps: 8);
+      if (frames.isEmpty) throw Exception("Không đủ dữ liệu hình ảnh");
+      
+      _logSystem("ĐANG XÁC THỰC ${frames.length} KHUNG HÌNH...");
       
       final base64Image = frames.last;
 
@@ -320,7 +326,6 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
       }
     }
   }
-// ... (trong phần build widget, tôi sẽ thêm nút reset)
 
   LivenessChallenge _pickChallenge() {
     final now = DateTime.now().microsecondsSinceEpoch;
@@ -344,11 +349,31 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   String _challengeLabel(LivenessChallenge c) {
     switch (c) {
       case LivenessChallenge.turnLeft:
-        return "TURN LEFT";
+        return "QUAY MẶT SANG TRÁI";
       case LivenessChallenge.turnRight:
-        return "TURN RIGHT";
+        return "QUAY MẶT SANG PHẢI";
       case LivenessChallenge.blink:
-        return "BLINK";
+        return "HÃY NHÁY MẮT";
+    }
+  }
+
+  Future<void> _startChallengeSequence() async {
+    setState(() {
+      _isCountingDown = true;
+      _countdownValue = 3;
+    });
+
+    for (int i = 3; i > 0; i--) {
+      if (!mounted) return;
+      setState(() => _countdownValue = i);
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    if (mounted) {
+      setState(() {
+        _isCountingDown = false;
+        _countdownValue = 0;
+      });
     }
   }
 
@@ -370,18 +395,27 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
     });
 
     try {
+      // Small initial delay to ensure UI transition is smooth
+      await Future.delayed(const Duration(milliseconds: 500));
+
       for (int i = 0; i < maxFrames; i++) {
         if (!mounted) break;
-        final XFile photo = await _faceCameraController!.takePicture();
-        final Uint8List bytes = await photo.readAsBytes();
-        if (bytes.isNotEmpty) {
-          frames.add(base64Encode(bytes));
+        
+        try {
+          final XFile photo = await _faceCameraController!.takePicture();
+          final Uint8List bytes = await photo.readAsBytes();
+          if (bytes.isNotEmpty) {
+            frames.add(base64Encode(bytes));
+          }
+        } catch (e) {
+          debugPrint("Frame capture error at $i: $e");
         }
+        
         await Future.delayed(Duration(milliseconds: intervalMs));
       }
 
-      if (frames.length < 3) {
-        throw Exception("Không đủ dữ liệu camera để xác thực liveness");
+      if (frames.length < 5) {
+        throw Exception("Dữ liệu camera không đủ. Vui lòng thử lại.");
       }
 
       return frames;
@@ -422,6 +456,8 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
           _isFaceCameraReady = false;
           _isCapturingChallenge = false;
           _challenge = null;
+          _isCountingDown = false;
+          _countdownValue = 0;
         });
 
         // Cleanup face camera and wait
@@ -507,28 +543,38 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "LIVENESS CHECK",
+                _isCountingDown ? "CHUẨN BỊ" : "ĐANG THỰC HIỆN",
                 style: GoogleFonts.shareTechMono(color: Colors.white54, fontSize: 14, letterSpacing: 4),
               ),
               const SizedBox(height: 16),
-              Text(
-                _challengeLabel(_challenge!).toUpperCase(),
-                style: GoogleFonts.shareTechMono(color: AppTheme.info, fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 6),
-              ),
+              if (_isCountingDown)
+                Text(
+                  "$_countdownValue",
+                  style: GoogleFonts.shareTechMono(color: AppTheme.info, fontSize: 80, fontWeight: FontWeight.bold),
+                )
+              else
+                Text(
+                  _challengeLabel(_challenge!).toUpperCase(),
+                  style: GoogleFonts.shareTechMono(color: AppTheme.info, fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 6),
+                ),
               const SizedBox(height: 24),
               if (_isCapturingChallenge)
                 SizedBox(
-                  width: 150,
+                  width: 200,
                   child: Column(
                     children: [
-                      const LinearProgressIndicator(color: AppTheme.info, backgroundColor: Colors.white10),
-                      const SizedBox(height: 8),
-                      Text("CAPTURING FRAMES...", style: GoogleFonts.shareTechMono(color: Colors.white38, fontSize: 10)),
+                      const LinearProgressIndicator(
+                        color: AppTheme.info, 
+                        backgroundColor: Colors.white10,
+                        minHeight: 8,
+                      ),
+                      const SizedBox(height: 12),
+                      Text("VUI LÒNG GIỮ NGUYÊN TƯ THẾ", style: GoogleFonts.shareTechMono(color: AppTheme.info, fontSize: 12, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 )
-              else
-                Text("PREPARING...", style: GoogleFonts.shareTechMono(color: Colors.white38, fontSize: 10)),
+              else if (!_isCountingDown)
+                Text("KHỞI TẠO CAMERA...", style: GoogleFonts.shareTechMono(color: Colors.white38, fontSize: 10)),
             ],
           ),
         ),
@@ -539,7 +585,6 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   Widget _buildCameraArea() {
     return Stack(
       children: [
-        // Camera View (QR scan OR Face capture)
         Positioned.fill(
           child: Opacity(
             opacity: 0.8,
@@ -613,21 +658,15 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
           ),
         ),
         
-        // Futuristic Overlay
         _buildTechOverlay(),
-        
-        // Status HUD
         _buildStatusHud(),
         
-        // Scanning Animation
         if (_currentState == KioskState.scanning || _currentState == KioskState.processing)
           _buildScanningLine(),
 
-        // Challenge Instruction Overlay
         if (_currentState == KioskState.processing && _challenge != null)
           _buildChallengeOverlay(),
           
-        // Result Feedback
         if (_currentState == KioskState.success || _currentState == KioskState.failure)
           _buildResultOverlay(),
       ],
@@ -642,13 +681,11 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
         ),
         child: Stack(
           children: [
-            // Corner Accents
             _buildCorner(Alignment.topLeft),
             _buildCorner(Alignment.topRight),
             _buildCorner(Alignment.bottomLeft),
             _buildCorner(Alignment.bottomRight),
             
-            // Grid Lines (Subtle)
             Positioned.fill(
               child: CustomPaint(painter: GridPainter()),
             ),

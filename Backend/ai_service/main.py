@@ -53,10 +53,10 @@ def check_liveness(img):
     Kiểm tra tính sống thực cơ bản của ảnh.
     Sử dụng Laplacian variance để phát hiện ảnh mờ (thường là ảnh chụp qua màn hình hoặc giấy in).
     """
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img)
     variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-    # Ngưỡng variance thấp (ví dụ < 100) thường là ảnh mờ/spoof
-    return bool(variance > 100), float(variance)
+    # Ngưỡng variance thấp: điều chỉnh xuống 70 để ổn định hơn trên webcam
+    return bool(variance > 70), float(variance)
 
 if not hasattr(mp, "solutions"):
     # Newer mediapipe versions (e.g., 0.10.35) remove mp.solutions.*.
