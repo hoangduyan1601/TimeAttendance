@@ -55,8 +55,8 @@ def check_liveness(img):
     """
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
     variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-    # Ngưỡng variance thấp: điều chỉnh xuống 70 để ổn định hơn trên webcam
-    return bool(variance > 70), float(variance)
+    # Ngưỡng variance cực thấp để hỗ trợ webcam chất lượng kém: 40
+    return bool(variance > 40), float(variance)
 
 if not hasattr(mp, "solutions"):
     # Newer mediapipe versions (e.g., 0.10.35) remove mp.solutions.*.
@@ -227,13 +227,14 @@ async def compare_faces(request: AiCompareRequest):
 
         # 2. Check Liveness
         is_live, liveness_score = check_liveness(live_img)
-        if not is_live or liveness_score < 80:
+        # Đồng bộ ngưỡng thấp 40 để ổn định trên webcam
+        if not is_live or liveness_score < 40:
              return {
                 "similarity": 0.0,
                 "isMatch": False,
                 "isLive": False,
                 "livenessScore": round(liveness_score, 2),
-                "message": "Phát hiện gian lận! Vui lòng đứng trước camera."
+                "message": f"Phát hiện gian lận hoặc ảnh quá mờ ({round(liveness_score, 1)}). Vui lòng đứng trước camera."
             }
 
         # 3. Trích xuất vector và so khớp
@@ -266,7 +267,8 @@ async def compare_faces(request: AiCompareRequest):
             _log(f"[AI] Vector calculation error: {str(vec_e)}")
             raise HTTPException(status_code=500, detail=f"Lỗi tính toán vector: {str(vec_e)}")
         
-        is_match = bool(similarity >= 0.40) 
+        # Hạ ngưỡng xuống 0.35 để ổn định hơn
+        is_match = bool(similarity >= 0.35) 
 
         return {
             "similarity": round(similarity, 4),
@@ -326,8 +328,8 @@ async def compare_faces_challenge(request: AiCompareChallengeRequest):
             if abs(cscore) > abs(challenge_peak):
                 challenge_peak = cscore
 
-            # Only compute embedding on potentially live frames (faster)
-            if not is_live or lscore < 80:
+            # Hạ ngưỡng liveness cho challenge frame
+            if not is_live or lscore < 40:
                 continue
 
             try:
@@ -368,7 +370,8 @@ async def compare_faces_challenge(request: AiCompareChallengeRequest):
             }
 
         similarity = best["similarity"]
-        is_match = bool(similarity >= 0.40)
+        # Hạ ngưỡng matching challenge
+        is_match = bool(similarity >= 0.35)
 
         return {
             "similarity": round(similarity, 4),

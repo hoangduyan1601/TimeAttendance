@@ -174,7 +174,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (minutesSinceCheckIn < 30) {
                 throw new RuntimeException("Bạn vừa mới chấm công VÀO CA lúc " + 
                     attendanceLog.getCheckInTime().format(DateTimeFormatter.ofPattern("HH:mm")) + 
-                    ". Vui lòng đợi thêm " + (30 - minutesSinceCheckIn) + " phút để chấm công TAN CA.");
+                    ". Vui lòng đợi thêm " + (30 - minutesSinceCheckIn) + " phút để chấm công TAN CA. (Độ khớp: " + Math.round(similarity * 100) + "%)");
             }
             
             attendanceType = "TAN CA";
