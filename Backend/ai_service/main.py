@@ -53,10 +53,10 @@ def check_liveness(img):
     Kiểm tra tính sống thực cơ bản của ảnh.
     Sử dụng Laplacian variance để phát hiện ảnh mờ (thường là ảnh chụp qua màn hình hoặc giấy in).
     """
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
     variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-    # Ngưỡng variance thấp (ví dụ < 100) thường là ảnh mờ/spoof
-    return bool(variance > 100), float(variance)
+    # Ngưỡng variance cực thấp để hỗ trợ webcam chất lượng kém: 40
+    return bool(variance > 40), float(variance)
 
 if not hasattr(mp, "solutions"):
     # Newer mediapipe versions (e.g., 0.10.35) remove mp.solutions.*.
@@ -223,41 +223,52 @@ async def compare_faces(request: AiCompareRequest):
         live_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         if live_img is None:
-            raise HTTPException(status_code=400, detail="Lỗi hình ảnh.")
+            raise HTTPException(status_code=400, detail="Không thể giải mã hình ảnh từ camera. Vui lòng thử lại.")
 
         # 2. Check Liveness
         is_live, liveness_score = check_liveness(live_img)
-        if not is_live or liveness_score < 80:
+        # Đồng bộ ngưỡng thấp 40 để ổn định trên webcam
+        if not is_live or liveness_score < 40:
              return {
                 "similarity": 0.0,
                 "isMatch": False,
                 "isLive": False,
                 "livenessScore": round(liveness_score, 2),
-                "message": "Phát hiện gian lận! Vui lòng đứng trước camera."
+                "message": f"Phát hiện gian lận hoặc ảnh quá mờ ({round(liveness_score, 1)}). Vui lòng đứng trước camera."
             }
 
         # 3. Trích xuất vector và so khớp
-        live_results = DeepFace.represent(img_path=live_img, model_name=MODEL_NAME, enforce_detection=True)
-        if not live_results:
-            raise HTTPException(status_code=400, detail="Không thấy mặt trong ảnh live.")
+        try:
+            live_results = DeepFace.represent(img_path=live_img, model_name=MODEL_NAME, enforce_detection=False)
+        except Exception as e:
+            _log(f"[AI] /compare error: {str(e)}")
+            raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt trong ảnh live. Vui lòng chụp lại rõ hơn.")
+
+        if not live_results or len(live_results) == 0:
+            raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt trong khung hình.")
         
         live_vector = live_results[0]["embedding"]
         
-        a = np.array(request.storedVector)
-        b = np.array(live_vector)
-        
-        if len(a) != len(b):
-            return {
-                "similarity": 0.0,
-                "isMatch": False,
-                "isLive": True,
-                "message": "Lỗi: Vector không khớp. Cần eKYC lại."
-            }
+        try:
+            a = np.array(request.storedVector)
+            b = np.array(live_vector)
+            
+            if len(a) != len(b):
+                return {
+                    "similarity": 0.0,
+                    "isMatch": False,
+                    "isLive": True,
+                    "message": "Lỗi: Vector không khớp. Cần eKYC lại."
+                }
 
-        cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-        similarity = float(cos_sim) if not np.isnan(cos_sim) else 0.0
+            cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+            similarity = float(cos_sim) if not np.isnan(cos_sim) else 0.0
+        except Exception as vec_e:
+            _log(f"[AI] Vector calculation error: {str(vec_e)}")
+            raise HTTPException(status_code=500, detail=f"Lỗi tính toán vector: {str(vec_e)}")
         
-        is_match = bool(similarity >= 0.40) 
+        # Hạ ngưỡng xuống 0.35 để ổn định hơn
+        is_match = bool(similarity >= 0.35) 
 
         return {
             "similarity": round(similarity, 4),
@@ -317,8 +328,8 @@ async def compare_faces_challenge(request: AiCompareChallengeRequest):
             if abs(cscore) > abs(challenge_peak):
                 challenge_peak = cscore
 
-            # Only compute embedding on potentially live frames (faster)
-            if not is_live or lscore < 80:
+            # Hạ ngưỡng liveness cho challenge frame
+            if not is_live or lscore < 40:
                 continue
 
             try:
@@ -359,7 +370,8 @@ async def compare_faces_challenge(request: AiCompareChallengeRequest):
             }
 
         similarity = best["similarity"]
-        is_match = bool(similarity >= 0.40)
+        # Hạ ngưỡng matching challenge
+        is_match = bool(similarity >= 0.35)
 
         return {
             "similarity": round(similarity, 4),

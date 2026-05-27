@@ -6,8 +6,8 @@ import time
 from datetime import datetime, timedelta
 
 # Configuration
-CORE_API_URL = "http://localhost:8081/api/v1"
-HEALTH_URL = "http://localhost:8081/health"
+CORE_API_URL = "http://localhost:9090/api/v1"
+HEALTH_URL = "http://localhost:9090/health"
 
 USER_CREDENTIALS = {
     "username": "anque",
@@ -77,12 +77,15 @@ class AllApiTester:
         with open("dummy_selfie.jpg", "wb") as f: f.write(b"fake image content")
         
         files = {
-            "id_card": ("id.jpg", open("dummy_id.jpg", "rb"), "image/jpeg"),
+            "idCard": ("id.jpg", open("dummy_id.jpg", "rb"), "image/jpeg"),
             "selfie": ("selfie.jpg", open("dummy_selfie.jpg", "rb"), "image/jpeg")
         }
-        resp = requests.post(f"{CORE_API_URL}/auth/ekyc", headers=headers, files=files)
+        resp = requests.post(f"{CORE_API_URL}/employee/ekyc", headers=headers, files=files)
         print(f"Status: {resp.status_code}")
-        print(f"Response: {resp.json().get('message')}")
+        if resp.status_code == 201:
+            print(f"Response: {resp.json().get('message')}")
+        else:
+            print(f"Response error: {resp.text}")
         
         # Cleanup
         for f in files.values(): f[1].close()
@@ -120,7 +123,10 @@ class AllApiTester:
         resp = requests.post(f"{CORE_API_URL}/kiosk/verify", json=payload)
         print(f"Status: {resp.status_code}")
         # Sẽ lỗi AI nếu không có vector thực tế, nhưng check xem API có response không
-        print(f"Response: {resp.json().get('message')}")
+        if resp.headers.get('Content-Type') == 'application/json':
+            print(f"Response: {resp.json().get('message')}")
+        else:
+            print(f"Response (text): {resp.text}")
 
     def test_kiosk_live_logs(self):
         print_header("Kiosk - Live Logs")
@@ -148,7 +154,7 @@ class AllApiTester:
             "leaveType": "ANNUAL_LEAVE",
             "reason": "Family vacation"
         }
-        resp = requests.post(f"{CORE_API_URL}/employee/leaves", headers=headers, json=payload)
+        resp = requests.post(f"{CORE_API_URL}/employee/leave", headers=headers, json=payload)
         if resp.status_code == 200:
             self.leave_id = resp.json()['data']['id']
             print(f"[+] Leave request submitted. ID: {self.leave_id}")

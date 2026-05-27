@@ -103,11 +103,23 @@ public class AttendanceServiceImpl implements AttendanceService {
                     throw new RuntimeException("Phát hiện gian lận! Vui lòng đứng trước camera.");
                 }
             }
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
+            log.error("Lỗi từ AI Service (HTTP {}): {}", e.getStatusCode(), e.getResponseBodyAsString());
+            String errorMsg = e.getResponseBodyAsString().toLowerCase();
+            
+            // Xử lý cả lỗi 400 và 500 từ AI Service nếu có nội dung liên quan đến nhận diện
+            if (errorMsg.contains("không tìm thấy khuôn mặt") || errorMsg.contains("không thấy mặt") || errorMsg.contains("face") || errorMsg.contains("detection")) {
+                throw new RuntimeException("Không tìm thấy khuôn mặt trong khung hình. Vui lòng điều chỉnh lại vị trí đứng.");
+            }
+            if (errorMsg.contains("gian lận") || errorMsg.contains("fraud") || errorMsg.contains("liveness")) {
+                throw new RuntimeException("Phát hiện gian lận! Vui lòng thực hiện chấm công trung thực.");
+            }
+            throw new RuntimeException("Hệ thống nhận diện đang bận hoặc gặp sự cố. Vui lòng thử lại sau.");
         } catch (RuntimeException e) {
-            throw e; // Ném lại lỗi logic (như gian lận)
+            throw e; // Ném lại lỗi logic đã định nghĩa
         } catch (Exception e) {
-            log.error("Lỗi AI Service: {}", e.getMessage());
-            throw new RuntimeException("Hệ thống nhận diện khuôn mặt đang gặp sự cố. Thử lại sau.");
+            log.error("Lỗi kết nối AI Service: {}", e.getMessage());
+            throw new RuntimeException("Không thể kết nối với hệ thống nhận diện. Vui lòng thử lại sau.");
         }
 
         if (!isMatch) {
@@ -155,8 +167,17 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .build();
         } else {
             // Đã có bản ghi -> Cập nhật CHECK-OUT vào bản ghi cuối cùng của ngày
-            attendanceType = "TAN CA";
             attendanceLog = logsToday.get(logsToday.size() - 1);
+
+            // KIỂM TRA KHOẢNG CÁCH THỜI GIAN (Tránh quét nhầm)
+            long minutesSinceCheckIn = java.time.Duration.between(attendanceLog.getCheckInTime(), now).toMinutes();
+            if (minutesSinceCheckIn < 30) {
+                throw new RuntimeException("Bạn vừa mới chấm công VÀO CA lúc " + 
+                    attendanceLog.getCheckInTime().format(DateTimeFormatter.ofPattern("HH:mm")) + 
+                    ". Vui lòng đợi thêm " + (30 - minutesSinceCheckIn) + " phút để chấm công TAN CA. (Độ khớp: " + Math.round(similarity * 100) + "%)");
+            }
+            
+            attendanceType = "TAN CA";
             
             LocalDateTime checkOutTime = now;
             ShiftConfig shift = attendanceLog.getShift();
