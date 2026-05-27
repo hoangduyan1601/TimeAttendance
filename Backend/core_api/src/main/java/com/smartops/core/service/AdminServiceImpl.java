@@ -29,6 +29,21 @@ public class AdminServiceImpl implements AdminService {
     private final UserRepository userRepository;
     private final ShiftConfigRepository shiftConfigRepository;
     private final OvertimeRequestRepository overtimeRequestRepository;
+    private final FaceDataRepository faceDataRepository;
+
+    @Override
+    @Transactional
+    public void resetEkyc(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên"));
+        
+        user.setEkycStatus("NOT_STARTED");
+        if (user.getFaceData() != null) {
+            faceDataRepository.delete(user.getFaceData());
+            user.setFaceData(null);
+        }
+        userRepository.save(user);
+    }
 
     @Override
     public List<OvertimeRequestDTO> getAllOvertimeRequests() {

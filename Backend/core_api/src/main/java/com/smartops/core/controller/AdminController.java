@@ -76,6 +76,16 @@ public class AdminController {
         }
     }
 
+    @DeleteMapping("/ekyc/{userId}")
+    public ResponseEntity<ApiResponse<Void>> resetEkyc(@PathVariable Long userId) {
+        try {
+            adminService.resetEkyc(userId);
+            return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa dữ liệu Biometric và reset trạng thái eKYC"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     @GetMapping("/reports/export")
     public ResponseEntity<InputStreamResource> exportReport(
             @RequestParam("startDate") String startDate,

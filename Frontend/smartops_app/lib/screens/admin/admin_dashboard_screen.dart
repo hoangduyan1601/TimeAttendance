@@ -380,6 +380,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  void _handleEkycReset(int userId) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Xác nhận Reset EKYC"),
+        content: const Text("Hành động này sẽ xóa toàn bộ dữ liệu khuôn mặt và ảnh CCCD của nhân viên. Họ sẽ cần thực hiện định danh lại từ đầu. Bạn có chắc chắn?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Hủy")),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _apiService.resetEkyc(userId);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đã reset dữ liệu định danh thành công'), backgroundColor: AppTheme.success),
+                  );
+                  _fetchData();
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppTheme.error),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            child: const Text("XÁC NHẬN RESET"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleEkycReview(int userId, String status) async {
     try {
       await _apiService.reviewEkyc(userId, status);
@@ -1990,7 +2026,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Text("Phê duyệt Định danh Biometric (eKYC)", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Quản lý Định danh Biometric (eKYC)", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text("Tổng số: ${_allUsers.length} nhân viên", style: GoogleFonts.montserrat(color: AppTheme.secondarySlate, fontSize: 13)),
+              ],
+            ),
           ),
           const Divider(height: 1),
           Expanded(
@@ -2003,75 +2045,97 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   columnSpacing: 48,
                   horizontalMargin: 24,
                   columns: const [
-                    DataColumn(label: Text("MÃ YÊU CẦU")),
-                    DataColumn(label: Text("NHÂN VIÊN")),
+                    DataColumn(label: Text("MÃ NV")),
+                    DataColumn(label: Text("HỌ TÊN")),
                     DataColumn(label: Text("ĐỘ KHỚP (AI)")),
-                    DataColumn(label: Text("THÔNG TIN OCR")),
                     DataColumn(label: Text("DỮ LIỆU GỐC")),
                     DataColumn(label: Text("TRẠNG THÁI")),
                     DataColumn(label: Text("THAO TÁC")),
                   ],
-                  rows: _pendingEkyc.map((item) {
+                  rows: _allUsers.map((item) {
                     final int userId = item['id'];
                     final double? similarity = item['ekycSimilarity'] != null ? (item['ekycSimilarity'] as num).toDouble() : null;
+                    final String status = item['ekycStatus'] ?? 'NOT_STARTED';
                     
+                    Color statusColor;
+                    String statusText;
+                    switch (status) {
+                      case 'APPROVED':
+                        statusColor = AppTheme.success;
+                        statusText = "ĐÃ PHÊ DUYỆT";
+                        break;
+                      case 'PENDING':
+                        statusColor = AppTheme.warning;
+                        statusText = "CHỜ DUYỆT";
+                        break;
+                      case 'REJECTED':
+                        statusColor = AppTheme.error;
+                        statusText = "BỊ TỪ CHỐI";
+                        break;
+                      default:
+                        statusColor = AppTheme.secondarySlate;
+                        statusText = "CHƯA ĐĂNG KÝ";
+                    }
+
                     return DataRow(cells: [
-                      DataCell(Text("KYC-${item['id']}")),
+                      DataCell(Text(item['employeeCode'] ?? "NV-$userId")),
                       DataCell(Text(item['fullName'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold))),
                       DataCell(
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: similarity != null && similarity >= 0.75 ? AppTheme.success.withOpacity(0.1) : AppTheme.warning.withOpacity(0.1),
+                            color: similarity != null && similarity >= 0.35 ? AppTheme.success.withOpacity(0.1) : AppTheme.warning.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             similarity != null ? "${(similarity * 100).toStringAsFixed(1)}%" : "N/A",
                             style: TextStyle(
-                              color: similarity != null && similarity >= 0.75 ? AppTheme.success : AppTheme.warning,
+                              color: similarity != null && similarity >= 0.35 ? AppTheme.success : AppTheme.warning,
                               fontWeight: FontWeight.bold,
                               fontSize: 11,
                             ),
                           ),
                         ),
                       ),
-                      DataCell(Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text("Số: ${item['idNumber'] ?? 'N/A'}", style: const TextStyle(fontSize: 10)),
-                          Text("Tên ID: ${item['fullNameOnId'] ?? 'N/A'}", style: const TextStyle(fontSize: 10, color: AppTheme.secondarySlate)),
-                        ],
-                      )),
-                      DataCell(InkWell(
+                      DataCell(status != 'NOT_STARTED' ? InkWell(
                         onTap: () => _showImagePreview(item['idCardUrl'], item['selfieUrl']),
                         child: Row(
                           children: [
-                            const Icon(Icons.credit_card_rounded, size: 16, color: AppTheme.info),
+                            const Icon(Icons.image_search_rounded, size: 16, color: AppTheme.info),
                             const SizedBox(width: 8),
-                            const Icon(Icons.face_rounded, size: 16, color: AppTheme.info),
-                            const SizedBox(width: 8),
-                            Text("Xem ảnh", style: GoogleFonts.montserrat(color: AppTheme.info, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+                            Text("Xem dữ liệu", style: GoogleFonts.montserrat(color: AppTheme.info, fontSize: 11, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
                           ],
                         ),
-                      )),
+                      ) : const Text("-", style: TextStyle(color: AppTheme.secondarySlate))),
                       DataCell(Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: AppTheme.warning.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                        child: const Text("CHỜ DUYỆT", style: TextStyle(color: AppTheme.warning, fontSize: 10, fontWeight: FontWeight.bold)),
+                        decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                        child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
                       )),
                       DataCell(Row(
                         children: [
-                          OutlinedButton(
-                            onPressed: () => _handleEkycReview(userId, 'REJECTED'), 
-                            style: OutlinedButton.styleFrom(foregroundColor: AppTheme.error, side: const BorderSide(color: AppTheme.error), minimumSize: const Size(60, 30)),
-                            child: const Text("BÁO LỖI", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: () => _handleEkycReview(userId, 'APPROVED'), 
-                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, minimumSize: const Size(60, 30)),
-                            child: const Text("DUYỆT", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          if (status == 'PENDING') ...[
+                            IconButton(
+                              icon: const Icon(Icons.check_circle_outline_rounded, color: AppTheme.success, size: 20),
+                              tooltip: "Phê duyệt",
+                              onPressed: () => _handleEkycReview(userId, 'APPROVED'),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.cancel_outlined, color: AppTheme.error, size: 20),
+                              tooltip: "Từ chối",
+                              onPressed: () => _handleEkycReview(userId, 'REJECTED'),
+                            ),
+                          ],
+                          if (status != 'NOT_STARTED')
+                            IconButton(
+                              icon: const Icon(Icons.restart_alt_rounded, color: AppTheme.warning, size: 20),
+                              tooltip: "Reset dữ liệu EKYC",
+                              onPressed: () => _handleEkycReset(userId),
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.secondarySlate, size: 20),
+                            tooltip: "Xóa nhân viên",
+                            onPressed: () => _confirmDeleteEmployee(item),
                           ),
                         ],
                       )),

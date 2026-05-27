@@ -17,6 +17,7 @@ public interface AdminService {
     LeaveResponseDTO reviewLeave(Long leaveId, LeaveReviewDTO dto);
     AttendanceResponseDTO adjustAttendance(AttendanceAdjustDTO dto);
     void reviewEkyc(Long userId, EkycReviewDTO dto);
+    void resetEkyc(Long userId);
     List<UserResponseDTO> getPendingEkycRequests();
     List<LeaveResponseDTO> getAllLeaveRequests();
     List<AttendanceResponseDTO> getAttendanceReports(LocalDate startDate, LocalDate endDate);
