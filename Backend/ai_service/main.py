@@ -53,7 +53,7 @@ def check_liveness(img):
     Kiểm tra tính sống thực cơ bản của ảnh.
     Sử dụng Laplacian variance để phát hiện ảnh mờ (thường là ảnh chụp qua màn hình hoặc giấy in).
     """
-    gray = cv2.cvtColor(img, cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
     variance = cv2.Laplacian(gray, cv2.CV_64F).var()
     # Ngưỡng variance thấp: điều chỉnh xuống 70 để ổn định hơn trên webcam
     return bool(variance > 70), float(variance)
@@ -223,7 +223,7 @@ async def compare_faces(request: AiCompareRequest):
         live_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         if live_img is None:
-            raise HTTPException(status_code=400, detail="Lỗi hình ảnh.")
+            raise HTTPException(status_code=400, detail="Không thể giải mã hình ảnh từ camera. Vui lòng thử lại.")
 
         # 2. Check Liveness
         is_live, liveness_score = check_liveness(live_img)
@@ -237,25 +237,34 @@ async def compare_faces(request: AiCompareRequest):
             }
 
         # 3. Trích xuất vector và so khớp
-        live_results = DeepFace.represent(img_path=live_img, model_name=MODEL_NAME, enforce_detection=True)
-        if not live_results:
-            raise HTTPException(status_code=400, detail="Không thấy mặt trong ảnh live.")
+        try:
+            live_results = DeepFace.represent(img_path=live_img, model_name=MODEL_NAME, enforce_detection=False)
+        except Exception as e:
+            _log(f"[AI] /compare error: {str(e)}")
+            raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt trong ảnh live. Vui lòng chụp lại rõ hơn.")
+
+        if not live_results or len(live_results) == 0:
+            raise HTTPException(status_code=400, detail="Không tìm thấy khuôn mặt trong khung hình.")
         
         live_vector = live_results[0]["embedding"]
         
-        a = np.array(request.storedVector)
-        b = np.array(live_vector)
-        
-        if len(a) != len(b):
-            return {
-                "similarity": 0.0,
-                "isMatch": False,
-                "isLive": True,
-                "message": "Lỗi: Vector không khớp. Cần eKYC lại."
-            }
+        try:
+            a = np.array(request.storedVector)
+            b = np.array(live_vector)
+            
+            if len(a) != len(b):
+                return {
+                    "similarity": 0.0,
+                    "isMatch": False,
+                    "isLive": True,
+                    "message": "Lỗi: Vector không khớp. Cần eKYC lại."
+                }
 
-        cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-        similarity = float(cos_sim) if not np.isnan(cos_sim) else 0.0
+            cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+            similarity = float(cos_sim) if not np.isnan(cos_sim) else 0.0
+        except Exception as vec_e:
+            _log(f"[AI] Vector calculation error: {str(vec_e)}")
+            raise HTTPException(status_code=500, detail=f"Lỗi tính toán vector: {str(vec_e)}")
         
         is_match = bool(similarity >= 0.40) 
 

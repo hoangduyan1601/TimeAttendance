@@ -48,6 +48,16 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   late MobileScannerController _scannerController;
   Key _scannerKey = UniqueKey();
 
+  void _initScannerController() {
+    _scannerController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.front,
+      returnImage: true,
+      autoStart: false,
+    );
+    _scannerKey = UniqueKey();
+  }
+
   void _logSystem(String message, {bool isError = false}) {
     if (mounted) {
       setState(() {
@@ -67,12 +77,7 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    _scannerController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.front,
-      returnImage: true,
-      autoStart: false,
-    );
+    _initScannerController();
     _scanAnimationController = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
     _scanAnimation = Tween<double>(begin: 0, end: 1).animate(_scanAnimationController);
 
@@ -101,6 +106,8 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
     }
   }
 
+  bool _isWaitingForManualCapture = false;
+
   Future<void> _processIdentification(String qrToken) async {
     _logSystem("QR DETECTED, TRANSITIONING...");
     setState(() {
@@ -115,46 +122,63 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
 
       _identifiedUser = resolveResponse['data'];
       _currentQrToken = qrToken;
-      _challenge = _pickChallenge();
       
-      _logSystem("USER: ${_identifiedUser?['fullName']}");
-      
-      setState(() {
-        _statusMessage = "PREPARING CAMERA...";
-      });
-
-      // Dừng và giải phóng bộ quét QR triệt để
-      await _scannerController.stop();
-      await Future.delayed(const Duration(seconds: 2)); // Tăng delay lên 2s để giải phóng phần cứng
+      _logSystem("NGƯỜI DÙNG: ${_identifiedUser?['fullName']}");
       
       setState(() {
-        _currentState = KioskState.processing;
-        _statusMessage = _challengeLabel(_challenge!);
+        _statusMessage = "ĐANG CHUẨN BỊ CAMERA...";
       });
 
+      // Dừng và giải phóng bộ quét QR
+      _logSystem("ĐANG GIẢI PHÓNG BỘ QUÉT QR...");
+      try {
+        await _scannerController.stop();
+        await _scannerController.dispose();
+      } catch (e) {
+        _logSystem("LỖI GIẢI PHÓNG: $e", isError: true);
+      }
+      
+      await Future.delayed(const Duration(seconds: 1));
+      
+      if (!mounted) return;
+      
       // Step 2: Init front camera for face capture
       await _initializeFaceCamera();
       
       if (!_isFaceCameraReady) {
-        throw Exception("Face camera failed to initialize");
+        throw Exception("Camera không thể khởi động. Vui lòng thử lại.");
       }
 
-      // Step 3: Countdown and Challenge–response capture
-      await _startChallengeSequence();
+      setState(() {
+        _currentState = KioskState.processing;
+        _statusMessage = "HÃY NHÌN THẲNG VÀO CAMERA";
+        _isWaitingForManualCapture = true; // Bật cờ đợi nhấn nút
+      });
+
+    } catch (e) {
+      _handleVerificationError(e);
+    }
+  }
+
+  Future<void> _performManualCapture() async {
+    if (_currentState != KioskState.processing || !_isWaitingForManualCapture) return;
+
+    setState(() {
+      _isWaitingForManualCapture = false;
+      _statusMessage = "ĐANG CHỤP ẢNH XÁC THỰC...";
+    });
+
+    try {
+      _logSystem("ĐANG CHỤP ẢNH...");
+      final base64Image = await _captureFaceBase64();
       
-      final frames = await _captureChallengeFrames(durationMs: 4000, targetFps: 8);
-      if (frames.isEmpty) throw Exception("Không đủ dữ liệu hình ảnh");
-      
-      _logSystem("ĐANG XÁC THỰC ${frames.length} KHUNG HÌNH...");
-      
-      final base64Image = frames.last;
+      _logSystem("ĐANG GỬI ẢNH XÁC THỰC...");
+      setState(() => _statusMessage = "ĐANG KIỂM TRA ĐỘ KHỚP...");
 
       final verifyResponse = await _apiService.verifyKiosk(
         "KIOSK-GATE-01",
-        qrToken,
+        _currentQrToken!,
         base64Image,
-        framesBase64: frames,
-        challengeType: _challengeToApi(_challenge!),
       );
       
       if (mounted) {
@@ -163,11 +187,11 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
         
         setState(() {
           _currentState = KioskState.success;
-          _statusMessage = "ACCESS GRANTED";
+          _statusMessage = "XÁC THỰC THÀNH CÔNG";
           _liveLogs.insert(0, {
             'name': data['employeeName'],
             'time': DateFormat('HH:mm:ss').format(DateTime.now()),
-            'status': 'AUTHORIZED',
+            'status': 'ĐÃ XÁC THỰC',
             'score': _similarityScore,
             'isSuccess': true,
           });
@@ -176,32 +200,53 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
         _resetAfterDelay();
       }
     } catch (e) {
-      _logSystem("PROCESS ERROR: $e", isError: true);
-      if (mounted) {
-        String errorMessage = "ACCESS DENIED";
-        bool isFraud = false;
-        
-        if (e is DioException && e.response?.data != null) {
-          errorMessage = e.response?.data['message'] ?? "ACCESS DENIED";
-          if (errorMessage.contains("gian lận")) {
-            isFraud = true;
-            errorMessage = "FRAUD DETECTED";
-          }
+      _handleVerificationError(e);
+    }
+  }
+
+  void _handleVerificationError(Object e) {
+    _logSystem("PROCESS ERROR: $e", isError: true);
+    if (mounted) {
+      String errorMessage = "ACCESS DENIED";
+      bool isFraud = false;
+      double extractedScore = 0.0;
+      
+      if (e is DioException) {
+        if (e.response?.data != null && e.response?.data is Map) {
+          errorMessage = e.response?.data['message'] ?? "XÁC THỰC THẤT BẠI";
+        } else {
+          errorMessage = "LỖI KẾT NỐI SERVER";
         }
         
-        setState(() {
-          _currentState = KioskState.failure;
-          _statusMessage = errorMessage.toUpperCase();
-          _liveLogs.insert(0, {
-            'name': _identifiedUser?['fullName'] ?? 'UNKNOWN',
-            'time': DateFormat('HH:mm:ss').format(DateTime.now()),
-            'status': isFraud ? 'FRAUD ALERT' : 'REJECTED',
-            'score': 0.0,
-            'isSuccess': false,
-          });
-        });
-        _resetAfterDelay();
+        // Trích xuất độ khớp từ thông báo lỗi của backend nếu có
+        final regExp = RegExp(r"Độ khớp: (\d+)%");
+        final match = regExp.firstMatch(errorMessage);
+        if (match != null) {
+          extractedScore = double.tryParse(match.group(1) ?? "0") ?? 0.0;
+        }
+
+        if (errorMessage.contains("gian lận") || errorMessage.contains("FRAUD")) {
+          isFraud = true;
+          errorMessage = "PHÁT HIỆN GIAN LẬN";
+        }
+      } else {
+        errorMessage = e.toString().replaceFirst("Exception: ", "");
       }
+      
+      setState(() {
+        _currentState = KioskState.failure;
+        _statusMessage = errorMessage.toUpperCase();
+        _similarityScore = extractedScore;
+        _isWaitingForManualCapture = false;
+        _liveLogs.insert(0, {
+          'name': _identifiedUser?['fullName'] ?? 'UNKNOWN',
+          'time': DateFormat('HH:mm:ss').format(DateTime.now()),
+          'status': isFraud ? 'FRAUD ALERT' : 'REJECTED',
+          'score': extractedScore,
+          'isSuccess': false,
+        });
+      });
+      _resetAfterDelay();
     }
   }
 
@@ -213,20 +258,24 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
 
     try {
       _logSystem("FACE CAMERA INIT START...");
-      setState(() {
-        _isFaceCameraReady = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isFaceCameraReady = false;
+        });
+      }
 
       if (_faceCameraController != null) {
         _logSystem("DISPOSING OLD FACE CAMERA...");
-        await _faceCameraController!.dispose();
+        try {
+          await _faceCameraController!.dispose();
+        } catch (_) {}
         _faceCameraController = null;
-        await Future.delayed(const Duration(seconds: 1));
+        await Future.delayed(const Duration(milliseconds: 500));
       }
 
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        _logSystem("NO DEVICES FOUND", isError: true);
+        _logSystem("KHÔNG TÌM THẤY CAMERA", isError: true);
         return;
       }
 
@@ -238,7 +287,7 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
       } catch (_) {}
       selected ??= cameras.first;
 
-      _logSystem("SELECTED FACE CAM: ${selected.name}");
+      _logSystem("SỬ DỤNG CAMERA: ${selected.name}");
 
       _faceCameraController = CameraController(
         selected,
@@ -247,18 +296,18 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
-      // Retry mechanism for web initialization
+      _logSystem("KHỞI TẠO CONTROLLER...");
       int retries = 0;
       while (retries < 3) {
         try {
           await _faceCameraController!.initialize();
-          _logSystem("FACE CAMERA INITIALIZED SUCCESSFULLY");
+          _logSystem("CAMERA KHỞI TẠO THÀNH CÔNG");
           break;
         } catch (e) {
           retries++;
-          _logSystem("INIT RETRY $retries/3: $e", isError: true);
+          _logSystem("THỬ LẠI LẦN $retries: $e", isError: true);
           if (retries >= 3) rethrow;
-          await Future.delayed(const Duration(seconds: 2));
+          await Future.delayed(const Duration(seconds: 1));
         }
       }
 
@@ -267,61 +316,57 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
         _isFaceCameraReady = true;
       });
     } catch (e) {
-      _logSystem("FACE CAMERA FATAL ERROR: $e", isError: true);
+      _logSystem("LỖI CAMERA NGHIÊM TRỌNG: $e", isError: true);
     } finally {
       _isInitializingCamera = false;
     }
   }
 
+  void _hardRefresh() {
+    _logSystem("ĐANG TẢI LẠI TRANG...");
+    html.window.location.reload();
+  }
+
   Future<void> _manualReset() async {
-    _logSystem("FULL HARDWARE RESET INITIATED...");
+    _logSystem("ĐANG KHỞI TẠO LẠI PHẦN CỨNG...");
     try {
       if (mounted) {
         setState(() {
           _currentState = KioskState.transition;
-          _statusMessage = "HARDWARE RESET...";
+          _statusMessage = "ĐANG RESET...";
         });
       }
 
-      // Step 1: Force stop and dispose everything
-      try { await _scannerController.stop(); } catch (_) {}
-      try { await _scannerController.dispose(); } catch (_) {}
+      try { 
+        await _scannerController.stop(); 
+        await _scannerController.dispose();
+      } catch (_) {}
 
       if (_faceCameraController != null) {
         try { await _faceCameraController!.dispose(); } catch (_) {}
         _faceCameraController = null;
       }
 
-      // Step 2: Wait for hardware release (Longer delay for web)
-      _logSystem("WAITING FOR RESOURCES TO RELEASE...");
+      _logSystem("CHỜ GIẢI PHÓNG TÀI NGUYÊN (3S)...");
       await Future.delayed(const Duration(seconds: 3));
 
-      // Step 3: Re-create controller
-      _scannerController = MobileScannerController(
-        detectionSpeed: DetectionSpeed.normal,
-        facing: CameraFacing.front,
-        returnImage: true,
-        autoStart: false,
-      );
+      _initScannerController();
 
       if (mounted) {
-        setState(() {
-          _scannerKey = UniqueKey();
-        });
-        
         await _scannerController.start();
-        _logSystem("RE-INITIALIZATION COMPLETE");
+        _logSystem("RESET HOÀN TẤT");
         setState(() {
           _currentState = KioskState.idle;
-          _statusMessage = "READY TO SCAN";
+          _statusMessage = "SẴN SÀNG QUÉT";
+          _isFaceCameraReady = false;
         });
       }
     } catch (e) {
-      _logSystem("CRITICAL RESET FAILURE: $e", isError: true);
+      _logSystem("LỖI RESET: $e", isError: true);
       if (mounted) {
         setState(() {
           _currentState = KioskState.failure;
-          _statusMessage = "HARDWARE ERROR";
+          _statusMessage = "LỖI PHẦN CỨNG";
         });
       }
     }
@@ -446,12 +491,34 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
 
   void _resetAfterDelay() {
     Future.delayed(const Duration(seconds: 4), () async {
+      if (!mounted) return;
+
+      if (_faceCameraController != null) {
+        _logSystem("DỌN DẸP CAMERA...");
+        try {
+          await _faceCameraController!.dispose();
+        } catch (_) {}
+        _faceCameraController = null;
+      }
+
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      _logSystem("KHỞI TẠO LẠI QUÉT QR...");
+      _initScannerController();
+      
+      try {
+        await _scannerController.start();
+        _logSystem("SẴN SÀNG QUÉT QR");
+      } catch (e) {
+        _logSystem("LỖI KHỞI ĐỘNG QR: $e", isError: true);
+      }
+
       if (mounted) {
         setState(() {
           _currentState = KioskState.idle;
           _identifiedUser = null;
           _currentQrToken = null;
-          _statusMessage = "READY TO SCAN";
+          _statusMessage = "SẴN SÀNG QUÉT";
           _similarityScore = 0.0;
           _isFaceCameraReady = false;
           _isCapturingChallenge = false;
@@ -459,16 +526,6 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
           _isCountingDown = false;
           _countdownValue = 0;
         });
-
-        // Cleanup face camera and wait
-        if (_faceCameraController != null) {
-          await _faceCameraController!.dispose();
-          _faceCameraController = null;
-        }
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        // Restart QR scanner
-        _scannerController.start();
       }
     });
   }
@@ -586,76 +643,7 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
     return Stack(
       children: [
         Positioned.fill(
-          child: Opacity(
-            opacity: 0.8,
-            child: _currentState == KioskState.processing
-                ? (_isFaceCameraReady && _faceCameraController != null
-                    ? CameraPreview(_faceCameraController!)
-                    : const Center(
-                        child: CircularProgressIndicator(color: AppTheme.info),
-                      ))
-                : (_currentState == KioskState.transition
-                    ? const Center(child: CircularProgressIndicator(color: AppTheme.info))
-                    : MobileScanner(
-                        key: _scannerKey,
-                        controller: _scannerController,
-                        onDetect: _onDetect,
-                        errorBuilder: (context, error, child) {
-                          return Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.error_outline, color: AppTheme.error, size: 64),
-                                const SizedBox(height: 24),
-                                Text(
-                                  "HARDWARE INITIALIZATION TIMEOUT",
-                                  style: GoogleFonts.shareTechMono(color: AppTheme.error, fontSize: 20, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 12),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                                  child: Text(
-                                    error.errorDetails?.message ?? "THE SYSTEM TIMED OUT STARTING THE VIDEO SOURCE.",
-                                    style: GoogleFonts.shareTechMono(color: Colors.white54, fontSize: 13),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                const SizedBox(height: 32),
-                                Wrap(
-                                  spacing: 16,
-                                  runSpacing: 16,
-                                  alignment: WrapAlignment.center,
-                                  children: [
-                                    ElevatedButton.icon(
-                                      onPressed: _manualReset,
-                                      icon: const Icon(Icons.refresh),
-                                      label: Text("RETRY RESET", style: GoogleFonts.shareTechMono(fontSize: 14, fontWeight: FontWeight.bold)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppTheme.info.withOpacity(0.1),
-                                        foregroundColor: AppTheme.info,
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                        side: const BorderSide(color: AppTheme.info, width: 1),
-                                      ),
-                                    ),
-                                    ElevatedButton.icon(
-                                      onPressed: () => html.window.location.reload(),
-                                      icon: const Icon(Icons.browser_updated),
-                                      label: Text("FORCE BROWSER REFRESH", style: GoogleFonts.shareTechMono(fontSize: 14, fontWeight: FontWeight.bold)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppTheme.error.withOpacity(0.1),
-                                        foregroundColor: AppTheme.error,
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                        side: const BorderSide(color: AppTheme.error, width: 1),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      )),
-          ),
+          child: _buildMainCameraContent(),
         ),
         
         _buildTechOverlay(),
@@ -666,11 +654,137 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
 
         if (_currentState == KioskState.processing && _challenge != null)
           _buildChallengeOverlay(),
+
+        if (_currentState == KioskState.processing && _isWaitingForManualCapture)
+          Positioned(
+            bottom: 60,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: AppTheme.info.withOpacity(0.5)),
+                    ),
+                    child: Text(
+                      "VUI LÒNG NHÌN THẲNG VÀO CAMERA",
+                      style: GoogleFonts.shareTechMono(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  GestureDetector(
+                    onTap: _performManualCapture,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 4),
+                        boxShadow: [
+                          BoxShadow(color: AppTheme.info.withOpacity(0.5), blurRadius: 20, spreadRadius: 5),
+                        ],
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 60,
+                          height: 60,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.camera_alt, color: AppTheme.info, size: 32),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "NHẤN NÚT ĐỂ XÁC THỰC",
+                    style: GoogleFonts.shareTechMono(color: Colors.white70, fontSize: 12, letterSpacing: 2),
+                  ),
+                ],
+              ),
+            ),
+          ),
           
         if (_currentState == KioskState.success || _currentState == KioskState.failure)
           _buildResultOverlay(),
       ],
     );
+  }
+
+  Widget _buildMainCameraContent() {
+    switch (_currentState) {
+      case KioskState.processing:
+        return _isFaceCameraReady && _faceCameraController != null
+            ? CameraPreview(_faceCameraController!)
+            : const Center(child: CircularProgressIndicator(color: AppTheme.info));
+      
+      case KioskState.transition:
+        return const Center(child: CircularProgressIndicator(color: AppTheme.info));
+      
+      case KioskState.success:
+      case KioskState.failure:
+        return Container(color: Colors.black); // Blank background for results
+
+      case KioskState.idle:
+      case KioskState.scanning:
+      default:
+        return MobileScanner(
+          key: _scannerKey,
+          controller: _scannerController,
+          onDetect: _onDetect,
+          placeholderBuilder: (context, child) => const Center(child: CircularProgressIndicator(color: AppTheme.info)),
+          errorBuilder: (context, error, child) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: AppTheme.error, size: 64),
+                  const SizedBox(height: 24),
+                  Text(
+                    "HARDWARE INITIALIZATION ERROR",
+                    style: GoogleFonts.shareTechMono(color: AppTheme.error, fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      error.errorDetails?.message ?? "THE SYSTEM ENCOUNTERED AN ERROR STARTING THE VIDEO SOURCE.",
+                      style: GoogleFonts.shareTechMono(color: Colors.white54, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _manualReset,
+                        icon: const Icon(Icons.refresh),
+                        label: Text("RETRY RESET", style: GoogleFonts.shareTechMono(fontSize: 14, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.info.withOpacity(0.1),
+                          foregroundColor: AppTheme.info,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          side: const BorderSide(color: AppTheme.info, width: 1),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+    }
   }
 
   Widget _buildTechOverlay() {
@@ -770,30 +884,36 @@ class _KioskScreenState extends State<KioskScreen> with TickerProviderStateMixin
   }
 
   Widget _buildScanningLine() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return AnimatedBuilder(
-          animation: _scanAnimation,
-          builder: (context, child) {
-            return Positioned(
-              top: constraints.maxHeight * _scanAnimation.value,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 2,
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(color: AppTheme.info.withOpacity(0.5), blurRadius: 15, spreadRadius: 2),
-                  ],
-                  gradient: const LinearGradient(
-                    colors: [Colors.transparent, AppTheme.info, Colors.transparent],
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return AnimatedBuilder(
+            animation: _scanAnimation,
+            builder: (context, child) {
+              return Stack(
+                children: [
+                  Positioned(
+                    top: constraints.maxHeight * _scanAnimation.value,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 2,
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(color: AppTheme.info.withOpacity(0.5), blurRadius: 15, spreadRadius: 2),
+                        ],
+                        gradient: const LinearGradient(
+                          colors: [Colors.transparent, AppTheme.info, Colors.transparent],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+                ],
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
