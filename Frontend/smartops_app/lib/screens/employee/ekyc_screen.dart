@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:smartops_app/core/constants.dart';
 import 'package:smartops_app/core/theme.dart';
 import 'package:smartops_app/services/api_service.dart';
 
@@ -24,6 +25,7 @@ class _EkycScreenState extends State<EkycScreen> {
   final ApiService _apiService = ApiService();
   final List<Uint8List> _facePhotos = [];
   bool _isProcessing = false;
+  String? _errorMessage;
   
   String _currentStatus = "NOT_STARTED";
   String? _savedSelfieUrl;
@@ -36,7 +38,10 @@ class _EkycScreenState extends State<EkycScreen> {
 
   Future<void> _checkStatus() async {
     if (!mounted) return;
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
     try {
       final profile = await _apiService.getMyProfile();
       if (mounted) {
@@ -52,39 +57,102 @@ class _EkycScreenState extends State<EkycScreen> {
       }
     } catch (e) {
       debugPrint("Error checking status: $e");
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _errorMessage = "Không thể lấy thông tin trạng thái. Vui lòng kiểm tra kết nối mạng.";
+        });
+      }
     }
   }
 
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
+      if (cameras.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = "Không tìm thấy camera trên thiết bị này.";
+            _isCameraInitialized = false;
+          });
+        }
+        return;
+      }
       await _setupCamera(cameras, false);
     } catch (e) {
       debugPrint("Error init camera: $e");
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Lỗi khởi tạo camera: $e";
+          _isCameraInitialized = false;
+        });
+      }
     }
   }
 
   Future<void> _setupCamera(List<CameraDescription> cameras, bool useBack) async {
-    if (_controller != null) {
-      await _controller!.dispose();
-    }
+    try {
+      if (_controller != null) {
+        await _controller!.dispose();
+      }
 
-    CameraDescription description = cameras.firstWhere(
-      (cam) => cam.lensDirection == (useBack ? CameraLensDirection.back : CameraLensDirection.front),
-      orElse: () => cameras.first,
-    );
+      CameraDescription description = cameras.firstWhere(
+        (cam) => cam.lensDirection == (useBack ? CameraLensDirection.back : CameraLensDirection.front),
+        orElse: () => cameras.first,
+      );
 
-    _controller = CameraController(
-      description,
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
+      // Thử với các mức cấu hình từ Medium xuống Low để tăng khả năng tương thích
+      final presets = [ResolutionPreset.medium, ResolutionPreset.low];
+      bool success = false;
+      Object? lastError;
 
-    await _controller!.initialize();
-    if (mounted) {
-      setState(() => _isCameraInitialized = true);
+      for (var preset in presets) {
+        if (success) break;
+        
+        _controller = CameraController(
+          description,
+          preset,
+          enableAudio: false,
+        );
+
+        int retries = 0;
+        while (retries < 2) {
+          try {
+            await _controller!.initialize();
+            success = true;
+            break;
+          } catch (e) {
+            lastError = e;
+            retries++;
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
+      }
+
+      if (success && mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+          _errorMessage = null;
+        });
+      } else {
+        throw lastError ?? Exception("Không thể khởi tạo camera");
+      }
+    } catch (e) {
+      debugPrint("Error setup camera: $e");
+      if (mounted) {
+        String msg = "Không thể mở camera.";
+        if (e.toString().contains("cameraAbort")) {
+          msg = "Lỗi: Camera đang bị ứng dụng khác sử dụng hoặc bị trình duyệt chặn. Hãy đóng các ứng dụng đang dùng camera (Zoom, Teams...) và thử lại.";
+        } else if (e.toString().contains("Permission denied")) {
+          msg = "Bạn đã từ chối quyền truy cập camera. Vui lòng cấp quyền trong cài đặt trình duyệt.";
+        } else {
+          msg = "Lỗi: $e";
+        }
+        setState(() {
+          _errorMessage = msg;
+          _isCameraInitialized = false;
+        });
+      }
     }
   }
 
@@ -181,6 +249,46 @@ class _EkycScreenState extends State<EkycScreen> {
   Widget build(BuildContext context) {
     if (_isProcessing && _currentStatus == "NOT_STARTED") {
       return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator(color: AppTheme.info)));
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 64),
+                const SizedBox(height: 24),
+                Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.montserrat(color: Colors.white, fontSize: 16),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    if (_currentStatus == "NOT_STARTED") {
+                      _checkStatus();
+                    } else {
+                      _initializeCamera();
+                    }
+                  },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text("THỬ LẠI"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.info,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     // Show Status Overlay if already PENDING or APPROVED
@@ -329,7 +437,7 @@ class _EkycScreenState extends State<EkycScreen> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                           child: Image.network(
-                            "http://localhost:9090/api/v1" + _savedSelfieUrl!,
+                            ApiConstants.baseUrl.replaceAll("/api/v1", "") + _savedSelfieUrl!,
                             height: 180,
                             width: 135,
 
