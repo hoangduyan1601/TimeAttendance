@@ -77,6 +77,12 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<LeaveRequest> leaveRequests;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<OvertimeRequest> overtimeRequests;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<ShiftChangeRequest> shiftChangeRequests;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

@@ -253,6 +253,19 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> resetEkyc(int userId) async {
+    try {
+      final options = await _getOptions();
+      final response = await _dio.delete(
+        '${ApiConstants.baseUrl}/admin/ekyc/$userId',
+        options: options,
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> getAllLeaves() async {
     try {
       final options = await _getOptions();
