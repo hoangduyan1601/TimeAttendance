@@ -1,4 +1,5 @@
 class ApiConstants {
+  static const String kioskApiKey = String.fromEnvironment('KIOSK_API_KEY');
   // Dùng '127.0.0.1' để tránh lỗi IPv6 trên trình duyệt Chrome (Windows)
   static const String baseUrl = 'http://127.0.0.1:9090/api/v1'; 
   

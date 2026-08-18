@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 import java.util.List;
 
 import com.smartops.core.service.EkycService;
@@ -71,7 +72,7 @@ public class EmployeeController {
     }
 
     @PostMapping("/leave")
-    public ResponseEntity<ApiResponse<LeaveResponseDTO>> submitLeave(@RequestBody LeaveRequestDTO request) {
+    public ResponseEntity<ApiResponse<LeaveResponseDTO>> submitLeave(@Valid @RequestBody LeaveRequestDTO request) {
         try {
             LeaveResponseDTO response = employeeService.submitLeaveRequest(request);
             return ResponseEntity.ok(ApiResponse.success(response, "Gửi đơn từ thành công"));

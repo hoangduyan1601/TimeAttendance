@@ -7,7 +7,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
+import com.smartops.core.exception.BusinessConflictException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -38,10 +40,11 @@ public class AttendanceServiceImpl implements AttendanceService {
     private String compareEndpoint;
 
     @Override
+    @Transactional
     public KioskVerifyResponse verify(KioskVerifyRequest request) {
         // 1. Giải mã QR lấy User
         AuthResponse.UserSummary userSummary = getUserByQrToken(request.getQrToken());
-        User user = userRepository.findById(userSummary.getId())
+        User user = userRepository.findByIdForUpdate(userSummary.getId())
                 .orElseThrow(() -> new RuntimeException("Nhân sự không tồn tại"));
 
         // CHỈ CHO PHÉP NẾU ĐÃ DUYỆT EKYC
@@ -104,7 +107,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 }
             }
         } catch (org.springframework.web.reactive.function.client.WebClientResponseException e) {
-            log.error("Lỗi từ AI Service (HTTP {}): {}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("AI service rejected verification (HTTP {})", e.getStatusCode());
             String errorMsg = e.getResponseBodyAsString().toLowerCase();
             
             // Xử lý cả lỗi 400 và 500 từ AI Service nếu có nội dung liên quan đến nhận diện
@@ -131,8 +134,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         java.time.LocalDate today = now.toLocalDate();
         
         // Tìm bản ghi đầu tiên trong ngày để xem là Check-in hay Check-out
-        List<AttendanceLog> logsToday = attendanceLogRepository.findAllByUserIdAndCheckInTimeBetween(
+        List<AttendanceLog> logsToday = attendanceLogRepository.findAllByUserIdAndCheckInTimeBetweenOrderByCheckInTimeAsc(
                 user.getId(), today.atStartOfDay(), today.atTime(23, 59, 59));
+
+        if (logsToday.size() > 1) {
+            log.error("Attendance invariant violated for userId={} date={}", user.getId(), today);
+            throw new BusinessConflictException("Attendance state is inconsistent. Please contact an administrator.");
+        }
 
         AttendanceLog attendanceLog;
         String attendanceType;
@@ -169,10 +177,14 @@ public class AttendanceServiceImpl implements AttendanceService {
             // Đã có bản ghi -> Cập nhật CHECK-OUT vào bản ghi cuối cùng của ngày
             attendanceLog = logsToday.get(logsToday.size() - 1);
 
+            if (attendanceLog.getCheckOutTime() != null) {
+                throw new BusinessConflictException("Attendance for today is already complete.");
+            }
+
             // KIỂM TRA KHOẢNG CÁCH THỜI GIAN (Tránh quét nhầm)
             long minutesSinceCheckIn = java.time.Duration.between(attendanceLog.getCheckInTime(), now).toMinutes();
             if (minutesSinceCheckIn < 30) {
-                throw new RuntimeException("Bạn vừa mới chấm công VÀO CA lúc " + 
+                throw new BusinessConflictException("Bạn vừa mới chấm công VÀO CA lúc " +
                     attendanceLog.getCheckInTime().format(DateTimeFormatter.ofPattern("HH:mm")) + 
                     ". Vui lòng đợi thêm " + (30 - minutesSinceCheckIn) + " phút để chấm công TAN CA. (Độ khớp: " + Math.round(similarity * 100) + "%)");
             }
@@ -270,12 +282,18 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     @Override
+    @Transactional
     public AttendanceResponseDTO checkIn(AttendanceRequestDTO request) {
-        User user = userRepository.findById(request.getUserId())
+        User user = userRepository.findByIdForUpdate(request.getUserId())
                 .orElseThrow(() -> new RuntimeException("Nhân sự không tồn tại"));
 
         LocalDateTime now = LocalDateTime.now();
         LocalTime currentTime = now.toLocalTime();
+
+        if (!attendanceLogRepository.findAllByUserIdAndCheckInTimeBetweenOrderByCheckInTimeAsc(
+                user.getId(), now.toLocalDate().atStartOfDay(), now.toLocalDate().atTime(23, 59, 59)).isEmpty()) {
+            throw new BusinessConflictException("Employee already has an attendance record for today.");
+        }
 
         ShiftConfigDTO activeShiftDTO = shiftConfigService.getActiveShift(currentTime);
         if (activeShiftDTO == null) {

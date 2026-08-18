@@ -8,3 +8,5 @@ tf-keras
 pydantic
 scipy
 mediapipe==0.10.14
+pytest==8.3.5
+httpx==0.28.1

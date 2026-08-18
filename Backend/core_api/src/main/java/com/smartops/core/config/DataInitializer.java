@@ -5,81 +5,47 @@ import com.smartops.core.entity.User;
 import com.smartops.core.repository.DepartmentRepository;
 import com.smartops.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import java.util.Optional;
 
 @Component
+@ConditionalOnProperty(name = "app.demo-data-enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
-
     private final UserRepository userRepository;
     private final DepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${app.demo-password:}")
+    private String demoPassword;
+
     @Override
-    public void run(String... args) throws Exception {
-        // 1. Đảm bảo có ít nhất một phòng ban
-        Department dept;
-        if (departmentRepository.count() == 0) {
-            dept = Department.builder()
-                    .name("Ban Quản Trị")
-                    .description("Phòng ban dành cho Admin hệ thống")
-                    .build();
-            dept = departmentRepository.save(dept);
-        } else {
-            dept = departmentRepository.findAll().get(0);
+    public void run(String... args) {
+        if (demoPassword.length() < 8) {
+            throw new IllegalStateException("DEMO_PASSWORD must contain at least 8 characters when demo data is enabled");
         }
+        Department department = departmentRepository.findAll().stream().findFirst()
+                .orElseGet(() -> departmentRepository.save(Department.builder()
+                        .name("System Administration").description("Demo administration department").build()));
+        upsert("admin", "System Administrator", "admin@smartops.com", "ADMIN", "ADMIN001", "APPROVED", department);
+        upsert("anque", "An Que", "anque@smartops.com", "EMPLOYEE", "NV-ANQUE", "NOT_STARTED", department);
+    }
 
-        // 2. Tạo hoặc Cập nhật tài khoản Admin với mật khẩu 123456
-        Optional<User> existingAdmin = userRepository.findByUsername("admin");
-        User admin;
-        
-        if (existingAdmin.isPresent()) {
-            admin = existingAdmin.get();
-            admin.setPassword("123456");
-            admin.setRole("ADMIN"); 
-            admin.setStatus("ACTIVE");
-            System.out.println(">>> Đã CẬP NHẬT mật khẩu Admin thành: 123456");
-        } else {
-            admin = User.builder()
-                    .username("admin")
-                    .password("123456")
-                    .fullName("System Administrator")
-                    .email("admin@smartops.com")
-                    .role("ADMIN")
-                    .employeeCode("ADMIN001")
-                    .status("ACTIVE")
-                    .ekycStatus("APPROVED")
-                    .department(dept)
-                    .build();
-            System.out.println(">>> Đã TẠO MỚI tài khoản Admin: admin / 123456");
-        }
-        
-        userRepository.save(admin);
-
-        // 3. Tạo tài khoản nhân viên 'anque' với mật khẩu '123456'
-        Optional<User> existingAnque = userRepository.findByUsername("anque");
-        if (existingAnque.isPresent()) {
-            User anque = existingAnque.get();
-            anque.setPassword("123456");
-            userRepository.save(anque);
-            System.out.println(">>> Đã CẬP NHẬT mật khẩu cho 'anque' thành: 123456");
-        } else {
-            User anque = User.builder()
-                    .username("anque")
-                    .password("123456")
-                    .fullName("An Quế")
-                    .email("anque@smartops.com")
-                    .role("EMPLOYEE")
-                    .employeeCode("NV-ANQUE")
-                    .status("ACTIVE")
-                    .ekycStatus("NOT_STARTED")
-                    .department(dept)
-                    .build();
-            userRepository.save(anque);
-            System.out.println(">>> Đã TẠO MỚI tài khoản Nhân viên: anque / 123456");
-        }
+    private void upsert(String username, String fullName, String email, String role,
+                        String employeeCode, String ekycStatus, Department department) {
+        User user = userRepository.findByUsername(username).orElseGet(User::new);
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(demoPassword));
+        user.setFullName(fullName);
+        user.setEmail(email);
+        user.setRole(role);
+        user.setEmployeeCode(employeeCode);
+        user.setStatus("ACTIVE");
+        user.setEkycStatus(ekycStatus);
+        user.setDepartment(department);
+        userRepository.save(user);
     }
 }

@@ -1,25 +1,26 @@
 server:
-  port: 9090
+  port: ${SERVER_PORT:9090}
 spring:
   application:
     name: core-api
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5433/smartops_db
-    username: postgres
-    password: root
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartops_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   jpa:
+    open-in-view: false
     hibernate:
-      ddl-auto: update
-    defer-datasource-initialization: true # Chạy data.sql SAU khi tạo bảng
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    defer-datasource-initialization: true
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
   sql:
     init:
-      mode: always
+      mode: ${SQL_INIT_MODE:never}
       encoding: UTF-8
  # Luôn chạy script khởi tạo
   jackson:
@@ -31,8 +32,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: 20223457@eaut.edu.vn # Email dùng để gửi đi
-    password: "@Aq16012004" # Mật khẩu ứng dụng Gmail
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -41,15 +42,23 @@ spring:
             enable: true
 
 jwt:
-  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-  expiration: 86400000 # 24 hours in milliseconds
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION_MS:86400000}
 
 admin:
-  email: hoangduyankt@gmail.com # Email nhận thông báo
+  email: ${ADMIN_EMAIL:admin@example.com}
 
 upload:
   path: uploads/ekyc
 ai-service:
-  url: http://localhost:8080 # URL của Python FastAPI
+  url: ${AI_SERVICE_URL:http://localhost:8080}
   extract-endpoint: /internal/ai/embed
   compare-endpoint: /internal/ai/compare
+
+app:
+  kiosk:
+    key: ${KIOSK_API_KEY:}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+  demo-data-enabled: ${DEMO_DATA_ENABLED:false}
+  demo-password: ${DEMO_PASSWORD:}

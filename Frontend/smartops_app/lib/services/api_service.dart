@@ -1,10 +1,10 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartops_app/core/constants.dart';
 // Conditional import for web
-import 'dart:html' as html if (dart.library.io) 'package:smartops_app/services/fake_html.dart';
+import 'package:smartops_app/services/fake_html.dart'
+    if (dart.library.html) 'dart:html' as html;
 
 class ApiService {
   final Dio _dio = Dio();
@@ -29,6 +29,10 @@ class ApiService {
       },
     );
   }
+
+  Options _kioskOptions() => Options(
+        headers: {'X-Kiosk-Key': ApiConstants.kioskApiKey},
+      );
 
   // Auth
   Future<Map<String, dynamic>> login(String username, String password) async {
@@ -110,6 +114,7 @@ class ApiService {
     try {
       final response = await _dio.post(
         ApiConstants.kioskVerify,
+        options: _kioskOptions(),
         data: {
           'kioskId': kioskId,
           'qrToken': qrToken,
@@ -127,8 +132,7 @@ class ApiService {
   // Get Live Logs
   Future<Map<String, dynamic>> getLiveLogs() async {
     try {
-      final options = await _getOptions();
-      final response = await _dio.get(ApiConstants.liveLogs, options: options);
+      final response = await _dio.get(ApiConstants.liveLogs, options: _kioskOptions());
       return response.data;
     } catch (e) {
       rethrow;
@@ -151,6 +155,7 @@ class ApiService {
     try {
       final response = await _dio.post(
         ApiConstants.resolveQr,
+        options: _kioskOptions(),
         data: {'qrToken': qrToken},
       );
       return response.data;

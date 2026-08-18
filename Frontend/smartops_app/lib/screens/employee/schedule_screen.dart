@@ -885,9 +885,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
         _fetchData();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e"), backgroundColor: AppTheme.error));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e"), backgroundColor: AppTheme.error));
+      }
     } finally {
-      setModalState(() => _isSubmitting = false);
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -906,9 +908,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> with SingleTickerProvid
         _fetchData();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e"), backgroundColor: AppTheme.error));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e"), backgroundColor: AppTheme.error));
+      }
     } finally {
-      setModalState(() => _isSubmitting = false);
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 }

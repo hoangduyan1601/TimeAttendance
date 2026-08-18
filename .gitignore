@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.bak
+__pycache__/
+.pytest_cache/
+venv/
+.venv/
+**/target/
+**/build/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

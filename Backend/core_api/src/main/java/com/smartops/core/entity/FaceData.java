@@ -28,7 +28,7 @@ public class FaceData {
     private User user;
 
     // Vector 128 chiều đại diện cho khuôn mặt
-    @Column(name = "face_vector", columnDefinition = "float8[]")
+    @Column(name = "face_vector")
     private double[] faceVector;
 
     @Column(name = "id_card_url")

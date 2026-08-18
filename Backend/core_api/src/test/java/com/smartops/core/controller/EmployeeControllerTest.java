@@ -56,6 +56,7 @@ public class EmployeeControllerTest {
     public void testSubmitLeave() throws Exception {
         LeaveRequestDTO request = LeaveRequestDTO.builder()
                 .reason("Nghỉ ốm")
+                .leaveType("SICK")
                 .fromDate(java.time.LocalDate.now())
                 .toDate(java.time.LocalDate.now().plusDays(1))
                 .build();
@@ -68,7 +69,7 @@ public class EmployeeControllerTest {
 
         when(employeeService.submitLeaveRequest(any(LeaveRequestDTO.class))).thenReturn(mockResponse);
 
-        mockMvc.perform(post("/api/v1/employee/leaves")
+        mockMvc.perform(post("/api/v1/employee/leave")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())

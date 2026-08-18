@@ -230,6 +230,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       'departmentId': _selectedDept,
                       'assignedShiftId': _selectedShift,
                     });
+                    if (!context.mounted) return;
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tạo nhân viên thành công'), backgroundColor: AppTheme.success));
                     _fetchData();
@@ -337,6 +338,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       'assignedShiftId': _selectedShift,
                       'password': _passController.text.isNotEmpty ? _passController.text.trim() : null,
                     });
+                    if (!context.mounted) return;
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cập nhật thành công'), backgroundColor: AppTheme.success));
                     _fetchData();
@@ -365,6 +367,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onPressed: () async {
               try {
                 await _apiService.deleteUser(user['id']);
+                if (!context.mounted) return;
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã xóa nhân viên'), backgroundColor: AppTheme.success));
                 _fetchData();
@@ -392,7 +395,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onPressed: () async {
               try {
                 await _apiService.resetEkyc(userId);
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Đã reset dữ liệu định danh thành công'), backgroundColor: AppTheme.success),
@@ -400,7 +403,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   _fetchData();
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppTheme.error),
@@ -869,7 +872,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     await _apiService.createDepartment({'name': name, 'description': desc});
                   }
                   
-                  if (mounted) {
+                  if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(isEdit ? 'Cập nhật thành công' : 'Thêm phòng ban thành công'), backgroundColor: AppTheme.success),
@@ -877,7 +880,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     _refreshDepartments();
                   }
                 } catch (e) {
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppTheme.error),
                     );
@@ -904,7 +907,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onPressed: () async {
               try {
                 await _apiService.deleteDepartment(dept['id']);
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Đã xóa phòng ban'), backgroundColor: AppTheme.success),
@@ -912,7 +915,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   _refreshDepartments();
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Lỗi khi xóa: $e'), backgroundColor: AppTheme.error),
                   );
@@ -2313,7 +2316,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     await _apiService.createShift(data);
                   }
                   
-                  if (mounted) {
+                  if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(isEdit ? 'Cập nhật thành công' : 'Thêm ca làm thành công'), backgroundColor: AppTheme.success),
@@ -2321,7 +2324,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     _refreshShifts();
                   }
                 } catch (e) {
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppTheme.error),
                     );
@@ -2348,7 +2351,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onPressed: () async {
               try {
                 await _apiService.deleteShift(shift['id']);
-                if (mounted) {
+                if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Đã xóa ca làm việc'), backgroundColor: AppTheme.success),
@@ -2356,7 +2359,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   _refreshShifts();
                 }
               } catch (e) {
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Lỗi khi xóa: $e'), backgroundColor: AppTheme.error),
                   );

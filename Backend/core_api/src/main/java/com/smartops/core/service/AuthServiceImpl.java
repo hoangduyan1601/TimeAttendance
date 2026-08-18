@@ -25,6 +25,11 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new RuntimeException("Sai thông tin đăng nhập"));
 
+        if (user.getPassword() == null || !(user.getPassword().startsWith("$2a$")
+                || user.getPassword().startsWith("$2b$") || user.getPassword().startsWith("$2y$"))) {
+            throw new RuntimeException("Password reset required for this legacy account");
+        }
+
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Sai thông tin đăng nhập");
         }

@@ -10,6 +10,7 @@ import os
 import mediapipe as mp
 import traceback
 import sys
+import binascii
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -19,6 +20,8 @@ app = FastAPI(title="SmartOps AI Microservice v2")
 MODEL_NAME = "VGG-Face"
 # Sử dụng Cosine Similarity
 DISTANCE_METRIC = "cosine"
+MAX_IMAGE_BYTES = int(os.getenv("MAX_IMAGE_BYTES", str(5 * 1024 * 1024)))
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 
 def _log(msg: str):
     """
@@ -31,6 +34,39 @@ def _log(msg: str):
     except Exception:
         # As a last resort, drop logging
         pass
+
+async def _read_valid_image(upload: UploadFile):
+    if upload.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=415, detail="Only JPEG and PNG images are supported.")
+    contents = await upload.read(MAX_IMAGE_BYTES + 1)
+    if not contents:
+        raise HTTPException(status_code=400, detail="Image file is empty.")
+    if len(contents) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image exceeds the maximum allowed size.")
+    image = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        raise HTTPException(status_code=400, detail="Invalid image data.")
+    await upload.seek(0)
+    return image
+
+def _decode_base64_image(value: str):
+    encoded = value.split(",", 1)[1] if "," in value else value
+    if len(encoded) > ((MAX_IMAGE_BYTES + 2) // 3) * 4 + 4:
+        raise HTTPException(status_code=413, detail="Image exceeds the maximum allowed size.")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid image data.")
+    if not data or len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413 if data else 400, detail="Invalid image size.")
+    image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        raise HTTPException(status_code=400, detail="Invalid image data.")
+    return image
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 class AiCompareRequest(BaseModel):
     storedVector: List[float]
@@ -136,7 +172,8 @@ def _challenge_satisfied(challenge_type, landmarks, w, h):
 @app.post("/internal/ai/embed")
 async def extract_vector(file: UploadFile = File(...)):
     try:
-        _log(f"[AI] /embed request received. file={file.filename}")
+        await _read_valid_image(file)
+        _log("[AI] /embed request received")
         contents = await file.read()
         if not contents:
              raise HTTPException(status_code=400, detail="Nội dung file rỗng.")
@@ -162,11 +199,11 @@ async def extract_vector(file: UploadFile = File(...)):
             "liveness_score": round(float(score), 2),
             "is_potentially_live": bool(is_live)
         }
-    except BaseException as e:
-        # Some underlying libs may throw ExceptionGroup/BaseException; expose detail for debugging.
-        err = traceback.format_exc()
-        _log("[AI] /embed exception:\n" + err)
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        _log("[AI] /embed internal failure\n" + traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Face embedding failed.")
 
 @app.get("/internal/ai/routes")
 async def list_routes():
@@ -175,6 +212,8 @@ async def list_routes():
 @app.post("/internal/ai/verify-ekyc")
 async def verify_ekyc(id_card: UploadFile = File(...), selfie: UploadFile = File(...)):
     try:
+        await _read_valid_image(id_card)
+        await _read_valid_image(selfie)
         # 1. Read images
         id_contents = await id_card.read()
         id_nparr = np.frombuffer(id_contents, np.uint8)
@@ -210,12 +249,16 @@ async def verify_ekyc(id_card: UploadFile = File(...), selfie: UploadFile = File
             "vector": DeepFace.represent(img_path=selfie_img, model_name=MODEL_NAME, enforce_detection=True)[0]["embedding"],
             "message": "Verify thành công" if is_match else "Khuôn mặt không khớp với CCCD"
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        _log("[AI] /verify-ekyc internal failure\n" + traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Face verification failed.")
 
 @app.post("/internal/ai/compare")
 async def compare_faces(request: AiCompareRequest):
     try:
+        _decode_base64_image(request.liveImageBase64)
         # 1. Giải mã ảnh Live
         header, encoded = request.liveImageBase64.split(",", 1) if "," in request.liveImageBase64 else ("", request.liveImageBase64)
         image_data = base64.b64decode(encoded)
@@ -263,9 +306,9 @@ async def compare_faces(request: AiCompareRequest):
 
             cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
             similarity = float(cos_sim) if not np.isnan(cos_sim) else 0.0
-        except Exception as vec_e:
-            _log(f"[AI] Vector calculation error: {str(vec_e)}")
-            raise HTTPException(status_code=500, detail=f"Lỗi tính toán vector: {str(vec_e)}")
+        except Exception:
+            _log("[AI] Vector calculation failure\n" + traceback.format_exc())
+            raise HTTPException(status_code=500, detail="Face vector comparison failed.")
         
         # Hạ ngưỡng xuống 0.35 để ổn định hơn
         is_match = bool(similarity >= 0.35) 
@@ -277,8 +320,11 @@ async def compare_faces(request: AiCompareRequest):
             "livenessScore": round(liveness_score, 2),
             "message": "Thành công" if is_match else f"Khuôn mặt không khớp ({round(similarity*100, 1)}%)"
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        _log("[AI] /compare internal failure\n" + traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Face verification failed.")
 
 @app.post("/internal/ai/compare-challenge")
 async def compare_faces_challenge(request: AiCompareChallengeRequest):
@@ -382,8 +428,9 @@ async def compare_faces_challenge(request: AiCompareChallengeRequest):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        _log("[AI] /compare-challenge internal failure\n" + traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Face verification failed.")
 
 if __name__ == "__main__":
     import uvicorn

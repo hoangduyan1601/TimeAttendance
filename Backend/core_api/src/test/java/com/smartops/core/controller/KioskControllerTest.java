@@ -50,11 +50,20 @@ public class KioskControllerTest {
                 .build();
 
         mockMvc.perform(post("/api/v1/kiosk/verify")
+                .header("X-Kiosk-Key", "test-kiosk-key")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.data.employeeName").value("Hoàng Duy An"))
                 .andExpect(jsonPath("$.data.attendanceStatus").value("ON_TIME"));
+    }
+
+    @Test
+    public void kioskRequestWithoutDeviceKeyIsRejected() throws Exception {
+        mockMvc.perform(post("/api/v1/kiosk/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isUnauthorized());
     }
 }
